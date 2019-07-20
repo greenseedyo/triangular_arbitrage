@@ -1,15 +1,19 @@
 # -*- coding: utf-8 -*-
 
 from .context import bot
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../lib')))
 
 import unittest
+from unittest.mock import patch
+from max.client import Client
 
 
 class BasicTestSuite(unittest.TestCase):
-    """Basic test cases."""
-
-    def test_absolute_truth_and_meaning(self):
-        assert True
+    @patch('bot.helpers.get_max_client')
+    def test_get_bid_depth(self):
+        result = bot.helpers.get_buy_info('ethtwd', 2)
 
 
 if __name__ == '__main__':
