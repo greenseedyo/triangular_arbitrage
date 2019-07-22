@@ -92,3 +92,5 @@ ENV/
 # secrets
 secrets.py
 .idea/*
+
+logs/*
