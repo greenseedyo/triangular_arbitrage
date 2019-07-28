@@ -6,3 +6,6 @@ test:
 
 runbot:
 	python -m bin.runbot
+
+check:
+	python -m bin.check

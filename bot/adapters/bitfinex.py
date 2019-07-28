@@ -9,8 +9,11 @@ class BitfinexAdapter:
         client = ccxt.bitfinex({
             'apiKey': BITFINEX_KEY,
             'secret': BITFINEX_SECRET,
+            'enableRateLimit': True,
         })
         self.client = client
+        self.maker_fee_rate = 0.001
+        self.taker_fee_rate = 0.002
 
-    def fetch_order_book(self, symbol, limit):
-        return self.client.fetch_order_book(symbol, limit)
+    def __getattr__(self, name):
+        return getattr(self.client, name)
