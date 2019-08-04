@@ -4,8 +4,14 @@ init:
 test:
 	nosetests tests
 
-runbot:
-	python -m bin.runbot
+swing:
+	python -m bin.swing
 
 check:
 	python -m bin.check
+
+plot:
+	python -m bin.plot
+
+explore:
+	python -m bin.explore

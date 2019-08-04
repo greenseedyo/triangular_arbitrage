@@ -2,177 +2,258 @@
 
 from . import helpers
 import time
-import twder
 import logging
+import matplotlib.pyplot as plt
+import pandas
+from pprint import pprint
 
 
-logging.basicConfig(filename='logs/error.log', level=logging.DEBUG)
+logging.basicConfig(filename='logs/error.log')
+
+
+def plot():
+    names = ['time', 'forward', 'reverse']
+    data = pandas.read_csv('logs/ratio-TWD-ETH-USDT-max-binance.log', header=None, names=names)
+    plt.plot(data.time, data.forward)
+    plt.plot(data.time, data.reverse)
+    plt.axhline(y=0.9975, color='r', linestyle='-')
+    plt.axhline(y=1.0025, color='r', linestyle='-')
+    plt.show()
 
 
 def check():
-    local_fiat = 'TWD'
-    foreign_fiat = 'USDT'
-    cryptocurrency = 'ETH'
-    local_exchange = 'max'
-    foreign_exchange = 'binance'
+    first_currency = 'TWD'
+    bridge_currency = 'ETH'
+    second_currency = 'USDT'
+    primary_exchange = 'max'
+    secondary_exchange = 'max'
     config = {
-        'bank_rate': 31,
-        'local_fiat': local_fiat,
-        'foreign_fiat': foreign_fiat,
-        'cryptocurrency': cryptocurrency,
-        'local_exchange': local_exchange,
-        'foreign_exchange': foreign_exchange,
+        'real_rate_handler': 'get_real_rate_in_primary_exchange',
+        'bridge_currency': bridge_currency,
+        'first_currency': first_currency,
+        'second_currency': second_currency,
+        'max_first_currency_trade_amount': 1000,
+        'min_bridge_currency_trade_amount': 0.05,
+        'threshold_forward': 0.995,  # 順向
+        'threshold_reverse': 1.005,  # 逆向
+        'primary_exchange': primary_exchange,
+        'secondary_exchange': secondary_exchange,
+        'mode': 'test_trade',
     }
+    try:
+        run_one(config)
+    except Exception as e:
+        print(e)
     trader = helpers.Trader(config)
-    info = trader.get_balance_info()
-    print("\n".join(info))
+    #print(trader.get_bridge_currency_amount_in_secondary_exchange())
+    #print(trader.get_real_rate())
+    #info = trader.get_balance_info()
+    #print("\n".join(info))
+    #print(trader.secondary_exchange_adapter.markets['ETH/USDT'])
+    #trader.secondary_exchange_adapter.create_market_sell_order('ETH/USDT', 0.05, {'type': 'market'})
     #trader.exec_forward_trade(0.05)
     #trader.exec_reverse_trade(0.05)
     #info = trader.get_balance_info()
     #print("\n".join(info))
-    #trader.sell_cryptocurrency_from_local_exchange(0.1)
+    #trader.sell_bridge_currency_from_primary_exchange(0.1)
     #info = trader.get_balance_info()
     #print("\n".join(info))
-    #trader.sell_cryptocurrency_from_foreign_exchange(0.05)
-    #print(trader.fetch_local_orders())
-    #print(trader.fetch_foreign_orders())
+    #trader.sell_bridge_currency_from_secondary_exchange(0.05)
+    #print(trader.fetch_primary_orders())
+    #print(trader.fetch_secondary_orders()[-1])
 
 
-def run():
+def explore():
     # 幣種設定
-    # enabled_cryptocurrencies = ['BTC', 'ETH', 'LTC', 'BCH', 'MITH', 'USDT', 'TRX', 'EOS', 'BAT', 'ZRX', 'GNT', 'OMG', 'KNC', 'XRP']
-    enabled_cryptocurrencies = ['ETH']
-
-    # 交易金額上限設定
-    max_local_fiat_trade_amount = 10000
-    # 交易量下限設定
-    min_cryptocurrency_trade_amount = 0.05
+    first_currency = 'TWD'
+    bridge_currency = 'EOS'
+    second_currency = 'ETH'
 
     # 可執行交易的 (操作匯率 / 銀行匯率) 閥值設定
-    threshold_forward = 0.995  # 順向
-    threshold_reverse = 1.005  # 逆向
+    threshold_forward = 0.9975  # 順向
+    threshold_reverse = 1.0025  # 逆向
 
     # 交易所設定
-    local_exchange = 'max'
-    foreign_exchange = 'binance'
+    primary_exchange = 'max'
+    secondary_exchange = 'max'
 
     while 1:
-        for cryptocurrency in enabled_cryptocurrencies:
-            # 取得銀行匯率 (時間, 現金買入, 現金賣出, 即期買入, 即期賣出)
-            while 1:
-                try:
-                    bank_rate = float(twder.now('USD')[4])
-                except:
-                    time.sleep(10)
-                else:
-                    break
-            print('bank rate: {}'.format(bank_rate))
+        # 取得銀行匯率 (時間, 現金買入, 現金賣出, 即期買入, 即期賣出)
+        config = {
+            'real_rate_handler': 'get_real_rate_in_primary_exchange',
+            'bridge_currency': bridge_currency,
+            'first_currency': first_currency,
+            'second_currency': second_currency,
+            'max_first_currency_trade_amount': 0,
+            'min_bridge_currency_trade_amount': 0,
+            'threshold_forward': threshold_forward,  # 順向
+            'threshold_reverse': threshold_reverse,  # 逆向
+            'primary_exchange': primary_exchange,
+            'secondary_exchange': secondary_exchange,
+            'mode': 'explore',
+        }
+        try:
+            run_one(config)
+        except Exception as e:
+            print(e)
+            logging.exception(e)
+        time.sleep(30)
+
+
+def swing():
+    # enabled_bridge_currencies = ['BTC', 'ETH', 'LTC', 'BCH', 'MITH', 'USDT', 'TRX', 'EOS', 'BAT', 'ZRX', 'GNT', 'OMG', 'KNC', 'XRP']
+    enabled_bridge_currencies = ['ETH']
+
+    first_currency = 'TWD'
+    second_currency = 'USDT'
+    real_rate_handler = 'get_usdtwd_by_twder'
+
+    # 交易金額上限設定
+    max_first_currency_trade_amount = 10000
+    # 交易量下限設定
+    min_bridge_currency_trade_amount = 0.05
+
+    # 可執行交易的 (操作匯率 / 銀行匯率) 閥值設定
+    threshold_forward = 0.9975  # 順向
+    threshold_reverse = 1.0025  # 逆向
+
+    # 交易所設定
+    primary_exchange = 'max'
+    secondary_exchange = 'binance'
+
+    while 1:
+        for bridge_currency in enabled_bridge_currencies:
             config = {
-                'bank_rate': bank_rate,
-                'cryptocurrency': cryptocurrency,
-                'local_fiat': 'TWD',
-                'foreign_fiat': 'USDT',
-                'max_local_fiat_trade_amount': max_local_fiat_trade_amount,
-                'min_cryptocurrency_trade_amount': min_cryptocurrency_trade_amount,
+                'real_rate_handler': real_rate_handler,
+                'bridge_currency': bridge_currency,
+                'first_currency': first_currency,
+                'second_currency': second_currency,
+                'max_first_currency_trade_amount': max_first_currency_trade_amount,
+                'min_bridge_currency_trade_amount': min_bridge_currency_trade_amount,
                 'threshold_forward': threshold_forward,  # 順向
                 'threshold_reverse': threshold_reverse,  # 逆向
-                'local_exchange': local_exchange,
-                'foreign_exchange': foreign_exchange,
+                'primary_exchange': primary_exchange,
+                'secondary_exchange': secondary_exchange,
+                'mode': 'production',
             }
-            run_one(config)
+            try:
+                run_one(config)
+            except Exception as e:
+                print(e)
+                logging.exception(e)
             time.sleep(30)
 
 
 def run_one(config):
-    cryptocurrency = config['cryptocurrency']
-    local_fiat = config['local_fiat']
-    foreign_fiat = config['foreign_fiat']
+    first_currency = config['first_currency']
+    bridge_currency = config['bridge_currency']
+    second_currency = config['second_currency']
 
     print('[{}]'.format(time.strftime('%c')))
-    print('{} - {} - {}'.format(cryptocurrency, local_fiat, foreign_fiat))
+    print('{} - {} - {}'.format(first_currency, bridge_currency, second_currency))
 
     trader = helpers.Trader(config)
+    config['real_rate'] = trader.get_real_rate()
     thinker = helpers.Thinker(config)
 
-    # 取得台灣交易所的加密貨幣報價
-    local_book = trader.get_local_order_book(1)
-    local_lowest_ask_price = float(local_book['asks'][0][0])
-    local_lowest_ask_volume = float(local_book['asks'][0][1])
-    local_highest_bid_price = float(local_book['bids'][0][0])
-    local_highest_bid_volume = float(local_book['bids'][0][1])
+    # 取得第一交易所的加密貨幣報價
+    primary_order_book = trader.get_primary_order_book(1)
+    primary_lowest_ask_price = float(primary_order_book['asks'][0][0])
+    primary_highest_bid_price = float(primary_order_book['bids'][0][0])
 
-    # 取得外國交易所的加密貨幣報價
-    foreign_book = trader.get_foreign_order_book(1)
-    foreign_lowest_ask_price = float(foreign_book['asks'][0][0])
-    foreign_lowest_ask_volume = float(foreign_book['asks'][0][1])
-    foreign_highest_bid_price = float(foreign_book['bids'][0][0])
-    foreign_highest_bid_volume = float(foreign_book['bids'][0][1])
+    # 取得第二交易所的加密貨幣報價
+    secondary_order_book = trader.get_secondary_order_book(1)
+    secondary_lowest_ask_price = float(secondary_order_book['asks'][0][0])
+    secondary_highest_bid_price = float(secondary_order_book['bids'][0][0])
 
     # 計算操作匯率
-    forward_ratio = thinker.get_op_ratio(local_lowest_ask_price, foreign_highest_bid_price)
-    reverse_ratio = thinker.get_op_ratio(local_highest_bid_price, foreign_lowest_ask_price)
+    forward_ratio = thinker.get_op_ratio(primary_lowest_ask_price, secondary_highest_bid_price)
+    reverse_ratio = thinker.get_op_ratio(primary_highest_bid_price, secondary_lowest_ask_price)
     ratio_log = '{},{},{}'.format(int(time.time()), forward_ratio, reverse_ratio)
-    write_log('ratio', ratio_log)
+
+    log_name_suffix = '-{}-{}-{}-{}-{}'.format(first_currency, bridge_currency, second_currency, config['primary_exchange'], config['secondary_exchange'])
+
+    # TODO: 分日期
+    write_log('ratio{}'.format(log_name_suffix), ratio_log)
+
+    mode = config['mode']
+
+    def exec_trade(direction, buy_side_order_book, sell_side_order_book):
+        buy_side_lowest_ask_price = buy_side_order_book['asks'][0][0]
+        buy_side_lowest_ask_volume = buy_side_order_book['asks'][0][1]
+        sell_side_highest_bid_volume = sell_side_order_book['bids'][0][1]
+        trade_method = 'exec_test_trade'
+
+        if 'forward' == direction:
+            buy_side_currency_amount = trader.get_first_currency_amount()
+            sell_side_currency_amount = trader.get_bridge_currency_amount_in_secondary_exchange()
+            if 'production' == mode:
+                trade_method = 'exec_forward_trade'
+        elif 'reverse' == direction:
+            buy_side_currency_amount = trader.get_second_currency_amount()
+            sell_side_currency_amount = trader.get_bridge_currency_amount_in_primary_exchange()
+            if 'production' == mode:
+                trade_method = 'exec_reverse_trade'
+        else:
+            raise ValueError('direction must be forward or reverse')
+
+        # 計算買進/賣出量
+        take_volume = thinker.get_swing_valid_volume(direction,
+                                                     buy_side_currency_amount=buy_side_currency_amount,
+                                                     buy_side_lowest_ask_price=buy_side_lowest_ask_price,
+                                                     buy_side_lowest_ask_volume=buy_side_lowest_ask_volume,
+                                                     sell_side_currency_amount=sell_side_currency_amount,
+                                                     sell_side_highest_bid_volume=sell_side_highest_bid_volume)
+        if take_volume > 0:
+            log_trade(time.strftime('%c'), direction, first_currency, bridge_currency,
+                      second_currency, take_volume, forward_ratio)
+            try:
+                method = getattr(trader, trade_method)
+                method(take_volume)
+            except helpers.TradeSkippedException as e:
+                logging.exception(e)
+            # 取得最新結餘資訊
+            log_balance(trader)
+
+    def log_opportunity(direction, buy_side_order_book, sell_side_order_book):
+        buy_side_lowest_ask_price = buy_side_order_book['asks'][0][0]
+        buy_side_lowest_ask_volume = buy_side_order_book['asks'][0][1]
+        sell_side_highest_bid_price= sell_side_order_book['bids'][0][0]
+        sell_side_highest_bid_volume = sell_side_order_book['bids'][0][1]
+        if 'forward' == direction:
+            ratio = thinker.get_op_ratio(buy_side_lowest_ask_price, sell_side_highest_bid_price)
+        elif 'reverse' == direction:
+            ratio = thinker.get_op_ratio(sell_side_highest_bid_price, buy_side_lowest_ask_price)
+        else:
+            raise ValueError('direction must be forward or reverse')
+        possible_volume = min(buy_side_lowest_ask_volume, sell_side_highest_bid_volume)
+        msg = '[{}] FORWARD OPPORTUNITY: {} possible volume: {}, ratio: {}'.format(
+            time.strftime('%c'), bridge_currency, possible_volume, ratio)
+        print(msg)
+        write_log('opportunity{}'.format(log_name_suffix), msg)
+
+    if 'test_trade' == mode:
+        exec_trade('forward', primary_order_book, secondary_order_book)
+        return
 
     # 檢查是否可順向操作 (台幣買入加密貨幣、外幣賣出加密貨幣)
-    forward_opportunity = thinker.check_forward_opportunity(local_lowest_ask_price, foreign_highest_bid_price)
+    forward_opportunity = thinker.check_forward_opportunity(primary_lowest_ask_price, secondary_highest_bid_price)
     if forward_opportunity:
-        possible_volume = min(local_lowest_ask_volume, foreign_highest_bid_volume)
-        msg = '[{}] FORWARD OPPORTUNITY: {} possible volume: {}, ratio: {}'.format(
-            time.strftime('%c'), cryptocurrency, possible_volume, forward_ratio)
-        print(msg)
-        write_log('opportunity', msg)
-        #return
-        # 計算買進/賣出量
-        local_fiat_amount = trader.get_local_fiat_amount()
-        foreign_cryptocurrency_amount = trader.get_foreign_cryptocurrency_amount()
-        take_volume = thinker.get_valid_forward_volume(buy_side_fiat_amount=local_fiat_amount,
-                                                       buy_side_lowest_ask_price=local_lowest_ask_price,
-                                                       buy_side_lowest_ask_volume=local_lowest_ask_volume,
-                                                       sell_side_cryptocurrency_amount=foreign_cryptocurrency_amount,
-                                                       sell_side_highest_bid_volume=foreign_highest_bid_volume)
-        if 0 == take_volume:
-            return
-
-        log_trade(time.strftime('%c'), cryptocurrency, take_volume, forward_ratio)
-        try:
-            trader.exec_forward_trade(take_volume)
-        except helpers.TradeSkippedException as e:
-            logging.exception(e)
-        # 取得最新結餘資訊
-        log_balance(trader)
+        log_opportunity('forward', primary_order_book, secondary_order_book)
+        if 'explore' != mode:
+            exec_trade('forward', primary_order_book, secondary_order_book)
 
     # 檢查是否可反向操作 (外幣買入加密貨幣、台幣賣出加密貨幣)
-    reverse_opportunity = thinker.check_reverse_opportunity(foreign_lowest_ask_price, local_highest_bid_price)
+    reverse_opportunity = thinker.check_reverse_opportunity(secondary_lowest_ask_price, primary_highest_bid_price)
     if reverse_opportunity:
-        possible_volume = min(local_highest_bid_volume, foreign_lowest_ask_volume)
-        msg = '[{}] REVERSE OPPORTUNITY: {} possible volume: {}, ratio: {}'.format(
-            time.strftime('%c'), cryptocurrency, possible_volume, reverse_ratio)
-        print(msg)
-        write_log('opportunity', msg)
-        #return
-        # 計算買進/賣出量
-        foreign_fiat_amount = trader.get_foreign_fiat_amount()
-        local_cryptocurrency_amount = trader.get_local_cryptocurrency_amount()
-        take_volume = thinker.get_valid_reverse_volume(buy_side_fiat_amount=foreign_fiat_amount,
-                                                       buy_side_lowest_ask_price=foreign_lowest_ask_price,
-                                                       buy_side_lowest_ask_volume=foreign_lowest_ask_volume,
-                                                       sell_side_cryptocurrency_amount=local_cryptocurrency_amount,
-                                                       sell_side_highest_bid_volume=local_highest_bid_volume)
-        if 0 == take_volume:
-            return
-
-        log_trade(time.strftime('%c'), cryptocurrency, take_volume, forward_ratio)
-        try:
-            trader.exec_forward_trade(take_volume)
-        except helpers.TradeSkippedException as e:
-            logging.exception(e)
-        # 取得最新結餘資訊
-        log_balance(trader)
+        log_opportunity('reverse', secondary_order_book, primary_order_book)
+        if 'explore' != mode:
+            exec_trade('reverse', secondary_order_book, primary_order_book)
 
 
-def log_trade(time, cryptocurrency, take_volume, forward_ratio):
-    trade_msg = '{},{},{},{}'.format(time, cryptocurrency, take_volume, forward_ratio)
+def log_trade(formatted_time, direction, first_currency, bridge_currency, second_currency, take_volume, ratio):
+    trade_msg = '{}, {}, {}, {}, {}, {}, {}'.format(formatted_time, direction, first_currency, bridge_currency,
+                                                    second_currency, take_volume, ratio)
     print(trade_msg)
     write_log('trade', trade_msg)
 

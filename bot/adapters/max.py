@@ -17,13 +17,50 @@ class MaxAdapter(Exchange):
         self.taker_fee_rate = 0.0015
 
     def fetch_order_book(self, symbol, limit=None, params=None):
-        if params is None:
-            params = {}
-        market_id = self.parse_symbol(symbol)
+        if limit is None:
+            limit = 5
+        market_id = self.pair_symbol_to_martet_id(symbol)
         # 回傳的 asks 是由價格高排到低，要反過來把最低價排在前面
         response = self.client.get_public_pair_depth(market_id, limit)
         orderbook = self.parse_order_book(response)
         return orderbook
+
+    def fetch_ticker(self, pair_symbol, params=None):
+        self.load_markets()
+        market_id = self.pair_symbol_to_martet_id(pair_symbol)
+        response = self.client.get_public_all_tickers(market_id)
+        market = self.markets[pair_symbol]
+        return self.parse_ticker(response, market)
+
+    def parse_ticker(self, ticker, market=None):
+        self.load_markets()
+        timestamp = self.safe_float(ticker, 'at')
+        if timestamp is not None:
+            timestamp *= 1000
+        symbol = market['symbol']
+        last = self.safe_float(ticker, 'last')
+        return {
+            'symbol': symbol,
+            'timestamp': timestamp,
+            'datetime': self.iso8601(timestamp),
+            'high': self.safe_float(ticker, 'high'),
+            'low': self.safe_float(ticker, 'low'),
+            'bid': self.safe_float(ticker, 'buy'),
+            'bidVolume': None,
+            'ask': self.safe_float(ticker, 'sell'),
+            'askVolume': None,
+            'vwap': None,
+            'open': self.safe_float(ticker, 'open'),
+            'close': last,
+            'last': last,
+            'previousClose': None,
+            'change': None,
+            'percentage': None,
+            'average': None,
+            'baseVolume': self.safe_float(ticker, 'vol'),
+            'quoteVolume': None,
+            'info': ticker,
+        }
 
     def fetch_balance(self):
         response = self.client.get_private_account_balances()
@@ -168,19 +205,17 @@ class MaxAdapter(Exchange):
     def fetch_orders(self, symbol=None, since=None, limit=None, params=None):
         if params is None:
             params = {}
-        if since is None:
-            since = 0
         if limit is None:
             limit=100
         self.load_markets()
         market = self.markets[symbol]
         market_id = market['id']
         state = ['wait', 'done', 'cancel', 'convert']
-        response = self.client.get_private_order_history(market_id, state=state, offset=since, limit=limit)
-        print(response)
+        response = self.client.get_private_order_history(market_id, state=state, limit=limit, sort='desc')
+        #print(response)
         orders = self.parse_orders(response, market, since, limit)
         return orders
 
     @staticmethod
-    def parse_symbol(symbol):
-        return symbol.replace('/', '')
+    def pair_symbol_to_martet_id(symbol):
+        return symbol.replace('/', '').lower()
