@@ -124,7 +124,7 @@ class MaxAdapter(Exchange):
         filled = self.safe_float(order, 'executed_volume')
         remaining = self.safe_float(order, 'remaining_volume')
         cost = float(self.cost_to_precision(symbol, price * filled))
-        status = self.parse_order_status(self.safe_string(order, 'status'))
+        status = self.parse_order_status(self.safe_string(order, 'state'))
         fee = None
         return {
             'info': order,
@@ -199,6 +199,7 @@ class MaxAdapter(Exchange):
         self.load_markets()
         id = str(id)
         response = self.client.get_private_order_detail(id)
+        #print(response)
         order = self.parse_order(response)
         return order
 

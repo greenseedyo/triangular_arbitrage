@@ -4,6 +4,12 @@ init:
 test:
 	nosetests tests
 
+circle:
+	python -m bin.circle
+
+circle-check:
+	python -m bin.circle_check
+
 swing:
 	python -m bin.swing
 

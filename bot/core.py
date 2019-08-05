@@ -137,14 +137,14 @@ def swing():
                 'mode': 'production',
             }
             try:
-                run_one(config)
+                swing_run_one(config)
             except Exception as e:
                 print(e)
                 logging.exception(e)
             time.sleep(30)
 
 
-def run_one(config):
+def swing_run_one(config):
     first_currency = config['first_currency']
     bridge_currency = config['bridge_currency']
     second_currency = config['second_currency']
