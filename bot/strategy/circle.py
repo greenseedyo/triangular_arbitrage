@@ -3,6 +3,7 @@
 from bot.helpers.trader import Trader
 from bot.helpers.trader import TradeSkippedException
 from bot.helpers.thinker import Thinker
+from bot.helpers.slack import Slack
 import time
 import logging
 import matplotlib.pyplot as plt
@@ -10,7 +11,10 @@ import pandas
 from pprint import pprint
 
 
-logging.basicConfig(filename='logs/error.log')
+logging.basicConfig(
+    filename='logs/error.log',
+    datefmt='%Y-%m-%d %H:%M:%S',
+)
 
 
 def plot():
@@ -31,12 +35,7 @@ def check():
     curC = 'USDT'
 
     # 交易金額上限設定 (測試時可設定較少金額)
-    max_curA_trade_amount = 1000
-
-    # 交易量下限設定 (看交易所規定)
-    min_curA_trade_volume_limit = 250
-    min_curB_trade_volume_limit = 27
-    min_curC_trade_volume_limit = 8
+    max_curA_trade_amount = 10000
 
     exchange = 'max'
     config = {
@@ -44,13 +43,10 @@ def check():
         'curB': curB,
         'curC': curC,
         'max_curA_trade_amount': max_curA_trade_amount,
-        'min_curA_trade_volume_limit': min_curA_trade_volume_limit,
-        'min_curB_trade_volume_limit': min_curB_trade_volume_limit,
-        'min_curC_trade_volume_limit': min_curC_trade_volume_limit,
-        'threshold_forward': 0.995,  # 順向
-        'threshold_reverse': 1.005,  # 逆向
+        'threshold_forward': 0.996,  # 順向
+        'threshold_reverse': 1.004,  # 逆向
         'exchange': exchange,
-        'mode': 'test_trade',
+        'mode': 'test_mode',
     }
     try:
         run_one(config)
@@ -75,89 +71,97 @@ def check():
 
 
 def explore():
-    # 幣種設定
-    curA = 'TWD'
-    curB = 'ETH'
-    curC = 'BTC'
+    curB_candidates = ['BTC', 'ETH', 'XRP', 'QASH', 'HOT', 'QTUM', 'STACS', 'DASH']
+    curC_candidates = ['BTC', 'ETH']
 
-    # 可執行交易的 (操作匯率 / 銀行匯率) 閥值設定
-    threshold_forward = 0.995  # 順向
-    threshold_reverse = 1.005  # 逆向
-
-    # 交易所設定
-    exchange = 'max'
-
-    while 1:
-        # 取得銀行匯率 (時間, 現金買入, 現金賣出, 即期買入, 即期賣出)
-        config = {
-            'curA': curA,
-            'curB': curB,
-            'curC': curC,
-            'threshold_forward': 0.995,  # 順向
-            'threshold_reverse': 1.005,  # 逆向
-            'exchange': exchange,
-            'mode': 'explore',
-        }
-        try:
-            run_one(config)
-        except Exception as e:
-            print(e)
-            logging.exception(e)
-        time.sleep(30)
-
-
-def run():
-    # enabled_curB_candidates = ['BTC', 'ETH', 'LTC', 'BCH', 'MITH', 'USDT', 'TRX', 'EOS', 'BAT', 'ZRX', 'GNT', 'OMG', 'KNC', 'XRP']
-    # enabled_curB_candidates = ['ETH']
-
-    curA = 'TWD'
-    curB = 'ETH'
-    curC = 'BTC'
+    curA = 'USD'
 
     # 交易金額上限設定 (測試時可設定較少金額)
     max_curA_trade_amount = 1000
 
-    # 交易量下限設定 (看交易所規定)
-    min_curA_trade_volume_limit = 1000
-    min_curB_trade_volume_limit = 0.05
-    min_curC_trade_volume_limit = 0.0015
+    # 可執行交易的 (操作匯率 / 銀行匯率) 閥值設定
+    threshold_forward = 0.996  # 順向
+    threshold_reverse = 1.004  # 逆向
+
+    # 交易所設定
+    exchange = 'liquid'
+
+    while 1:
+        for curB in curB_candidates:
+            for curC in curC_candidates:
+                if curB == curC or curA == curC:
+                    continue
+
+                config = {
+                    'curA': curA,
+                    'curB': curB,
+                    'curC': curC,
+                    'threshold_forward': threshold_forward,  # 順向
+                    'threshold_reverse': threshold_reverse,  # 逆向
+                    'max_curA_trade_amount': max_curA_trade_amount,
+                    'exchange': exchange,
+                    'mode': 'production',
+                }
+                try:
+                    run_one(config)
+                except Exception as e:
+                    print(e)
+                    logging.exception(e)
+                time.sleep(2)
+        #time.sleep(10)
+        print('---------------------------------------------------------------------')
+
+
+def run():
+    curB_candidates = ['BTC', 'ETH', 'LTC', 'BCH', 'MITH', 'USDT', 'TRX', 'EOS', 'BAT', 'ZRX', 'GNT', 'OMG', 'KNC', 'XRP']
+    curC_candidates = ['MAX', 'USDT', 'ETH', 'BTC']
+
+    curA = 'TWD'
+
+    # 交易金額上限設定 (測試時可設定較少金額)
+    max_curA_trade_amount = 100000
 
     # 可執行交易的 (操作匯率 / 銀行匯率) 閥值設定
-    threshold_forward = 0.995  # 順向
-    threshold_reverse = 1.005  # 逆向
+    threshold_forward = 0.996  # 順向
+    threshold_reverse = 1.004  # 逆向
 
     # 交易所設定
     exchange = 'max'
 
     while 1:
-        config = {
-            'curA': curA,
-            'curB': curB,
-            'curC': curC,
-            'max_curA_trade_amount': max_curA_trade_amount,
-            'min_curA_trade_volume_limit': min_curA_trade_volume_limit,
-            'min_curB_trade_volume_limit': min_curB_trade_volume_limit,
-            'min_curC_trade_volume_limit': min_curC_trade_volume_limit,
-            'threshold_forward': threshold_forward,  # 順向
-            'threshold_reverse': threshold_reverse,  # 逆向
-            'exchange': exchange,
-            'mode': 'production',
-        }
-        try:
-            run_one(config)
-        except Exception as e:
-            print(e)
-            logging.exception(e)
-        time.sleep(30)
+        for curB in curB_candidates:
+            for curC in curC_candidates:
+                if curB == curC or curA == curC:
+                    continue
+
+                config = {
+                    'curA': curA,
+                    'curB': curB,
+                    'curC': curC,
+                    'max_curA_trade_amount': max_curA_trade_amount,
+                    'min_curB_trade_volume_limit': 0,
+                    'min_curC_trade_volume_limit': 0,
+                    'threshold_forward': threshold_forward,  # 順向
+                    'threshold_reverse': threshold_reverse,  # 逆向
+                    'exchange': exchange,
+                    'mode': 'production',
+                }
+                try:
+                    run_one(config)
+                except Exception as e:
+                    print(e)
+                    logging.exception(e)
+                time.sleep(0.5)
+        #time.sleep(10)
+        print('---------------------------------------------------------------------')
 
 
 def run_one(config):
     curA = config['curA']
     curB = config['curB']
     curC = config['curC']
+    exchange = config['exchange']
     max_curA_trade_amount = config['max_curA_trade_amount']
-    min_curB_trade_volume_limit = config['min_curB_trade_volume_limit']
-    min_curC_trade_volume_limit = config['min_curC_trade_volume_limit']
 
     print('[{}]'.format(time.strftime('%c')))
     print('{} - {} - {}'.format(curA, curB, curC))
@@ -168,31 +172,40 @@ def run_one(config):
     #pprint(trader.exchange_adapter.fetch_orders('USDT/TWD', limit=1))
     #return
 
+    # 交易量下限
+    min_curA_trade_volume_limit = trader.get_min_trade_volume_limit(curA)
+    min_curB_trade_volume_limit = trader.get_min_trade_volume_limit(curB)
+    min_curC_trade_volume_limit = trader.get_min_trade_volume_limit(curC)
+
     symbol_BA = '{}/{}'.format(curB, curA)
     symbol_BC = '{}/{}'.format(curB, curC)
     symbol_CA = '{}/{}'.format(curC, curA)
 
-    # 取得 B/A 交易對報價
+    # 取得交易對報價
     order_book_BA = trader.get_order_book(symbol_BA, 1)
-    lowest_ask_price_BA = float(order_book_BA['asks'][0][0])
-    lowest_ask_volume_BA = float(order_book_BA['asks'][0][1])
-    highest_bid_price_BA = float(order_book_BA['bids'][0][0])
-    highest_bid_volume_BA = float(order_book_BA['bids'][0][1])
-
-    # 取得 B/C 交易對報價
     order_book_BC = trader.get_order_book(symbol_BC, 1)
-    lowest_ask_price_BC = float(order_book_BC['asks'][0][0])
-    lowest_ask_volume_BC = float(order_book_BC['asks'][0][1])
-    highest_bid_price_BC = float(order_book_BC['bids'][0][0])
-    highest_bid_volume_BC = float(order_book_BC['bids'][0][1])
-
-    # 取得 C/A 交易對報價
-    #order_book_CA = {'bids': [[360010.0, 0.0083331]], 'asks': [[362997.9, 0.11266379]], 'timestamp': None, 'datetime': None, 'nonce': None}
     order_book_CA = trader.get_order_book(symbol_CA, 1)
-    lowest_ask_price_CA = float(order_book_CA['asks'][0][0])
-    lowest_ask_volume_CA = float(order_book_CA['asks'][0][1])
-    highest_bid_price_CA = float(order_book_CA['bids'][0][0])
-    highest_bid_volume_CA = float(order_book_CA['bids'][0][1])
+
+    if (order_book_BA is None) or (order_book_BC is None) or (order_book_CA is None):
+        return
+
+    try:
+        lowest_ask_price_BA = float(order_book_BA['asks'][0][0])
+        lowest_ask_volume_BA = float(order_book_BA['asks'][0][1])
+        highest_bid_price_BA = float(order_book_BA['bids'][0][0])
+        highest_bid_volume_BA = float(order_book_BA['bids'][0][1])
+
+        lowest_ask_price_BC = float(order_book_BC['asks'][0][0])
+        lowest_ask_volume_BC = float(order_book_BC['asks'][0][1])
+        highest_bid_price_BC = float(order_book_BC['bids'][0][0])
+        highest_bid_volume_BC = float(order_book_BC['bids'][0][1])
+
+        lowest_ask_price_CA = float(order_book_CA['asks'][0][0])
+        lowest_ask_volume_CA = float(order_book_CA['asks'][0][1])
+        highest_bid_price_CA = float(order_book_CA['bids'][0][0])
+        highest_bid_volume_CA = float(order_book_CA['bids'][0][1])
+    except IndexError:
+        return
 
     # 計算操作匯率
     forward_ratio = thinker.get_op_ratio(lowest_ask_price_BA, highest_bid_price_BC, highest_bid_price_CA)
@@ -201,10 +214,10 @@ def run_one(config):
     print('reverse ratio: {}'.format(reverse_ratio))
     ratio_log = '{},{},{}'.format(int(time.time()), forward_ratio, reverse_ratio)
 
-    log_name_suffix = '-{}-{}-{}-{}'.format(curA, curB, curC, config['exchange'])
+    log_name_suffix = '{}-{}-{}'.format(curA, curB, curC)
 
     # TODO: 分日期
-    write_log('ratio{}'.format(log_name_suffix), ratio_log)
+    #write_log('ratio/{}/{}'.format(exchange, log_name_suffix), ratio_log)
 
     mode = config['mode']
 
@@ -215,7 +228,9 @@ def run_one(config):
             ratio = forward_ratio
             curA_amount = trader.get_currency_amount(curA)
             take_volume = thinker.get_valid_forward_volume(max_curA_amount=max_curA_trade_amount,
+                                                           min_curA_trade_volume_limit=min_curA_trade_volume_limit,
                                                            min_curB_trade_volume_limit=min_curB_trade_volume_limit,
+                                                           min_curC_trade_volume_limit=min_curC_trade_volume_limit,
                                                            curA_amount=curA_amount,
                                                            price_BA=lowest_ask_price_BA,
                                                            ask_volume_BA=lowest_ask_volume_BA,
@@ -230,6 +245,8 @@ def run_one(config):
             price_BC = lowest_ask_price_BC
             curA_amount = trader.get_currency_amount(curA)
             take_volume = thinker.get_valid_reverse_volume(max_curA_amount=max_curA_trade_amount,
+                                                           min_curA_trade_volume_limit=min_curA_trade_volume_limit,
+                                                           min_curB_trade_volume_limit=min_curB_trade_volume_limit,
                                                            min_curC_trade_volume_limit=min_curC_trade_volume_limit,
                                                            curA_amount=curA_amount,
                                                            price_CA=lowest_ask_price_CA,
@@ -252,7 +269,7 @@ def run_one(config):
             except TradeSkippedException as e:
                 logging.exception(e)
             # 取得最新結餘資訊
-            time.sleep(1)
+            time.sleep(2)
             log_balance(trader, [curA, curB, curC])
 
     if 'test_trade' == mode or 'test_real_trade' == mode:
@@ -262,25 +279,25 @@ def run_one(config):
     # 檢查是否可順向操作
     forward_opportunity = thinker.check_forward_opportunity(lowest_ask_price_BA, highest_bid_price_BC, highest_bid_price_CA)
     if forward_opportunity:
-        volume = min(lowest_ask_price_BA, highest_bid_price_BC)
-        log_opportunity(log_name_suffix, 'forward', volume, curB, forward_ratio)
+        volume = min(lowest_ask_volume_BA, highest_bid_volume_BC)
+        log_opportunity(exchange, log_name_suffix, 'forward', volume, curB, forward_ratio)
         if 'explore' != mode:
             exec_trade('forward')
 
     # 檢查是否可反向操作 (外幣買入加密貨幣、台幣賣出加密貨幣)
     reverse_opportunity = thinker.check_reverse_opportunity(highest_bid_price_BA, lowest_ask_price_BC, lowest_ask_price_CA)
     if reverse_opportunity:
-        volume = min(highest_bid_price_BA, lowest_ask_price_BC)
-        log_opportunity(log_name_suffix, 'reverse', volume, curB, reverse_ratio)
+        volume = min(highest_bid_volume_BA, lowest_ask_volume_BC)
+        log_opportunity(exchange, log_name_suffix, 'reverse', volume, curB, reverse_ratio)
         if 'explore' != mode:
             exec_trade('reverse')
 
 
-def log_opportunity(log_name_suffix, direction, volume, cur, ratio):
+def log_opportunity(exchange, log_name_suffix, direction, volume, cur, ratio):
     msg = '[{}] {} OPPORTUNITY: possible volume: {}{}, ratio: {}'.format(
         time.strftime('%c'), direction.upper(), volume, cur, ratio)
     print(msg)
-    write_log('opportunity{}'.format(log_name_suffix), msg)
+    write_log('opportunity/{}/{}'.format(exchange, log_name_suffix), msg)
 
 
 def log_trade(formatted_time, direction, curA, curB, curC, take_volume, ratio):
@@ -301,6 +318,7 @@ def log_balance(trader, symbols):
     balance_msg = "\n".join(info)
     print('[NEW BALANCE INFO]')
     print(balance_msg)
+    Slack.send_message(balance_msg)
     write_log('balance', balance_msg)
 
 

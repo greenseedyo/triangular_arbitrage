@@ -3,6 +3,9 @@
 import sys
 import time
 import ccxt
+import urllib
+from urllib import error
+from bot.helpers.slack import Slack
 
 
 def get_exchange_adapter(exchange_name):
@@ -19,6 +22,9 @@ class Trader:
         self.exchange = config['exchange']
         self.exchange_adapter = get_exchange_adapter(config['exchange'])
 
+    def get_min_trade_volume_limit(self, symbol):
+        return self.exchange_adapter.get_min_trade_volume_limit(symbol)
+
     def get_balance_info(self, symbols):
         info = []
         info.append('[{}]'.format(time.strftime('%c')))
@@ -30,17 +36,42 @@ class Trader:
 
     def get_order_book(self, pair_symbol, limit):
         adapter = self.exchange_adapter
+        order_book = None
         while 1:
             try:
                 order_book = adapter.fetch_order_book(pair_symbol, limit=limit)
+                break
+            except ccxt.ExchangeError as e:
+                if str(e).find('No market symbol'):
+                    break
+                else:
+                    print(str(e))
+                    break
+            except urllib.error.HTTPError as e:
+                if 'HTTP Error 400: Bad Request' == str(e):
+                    return
+                else:
+                    print('sleep 10s...')
+                    time.sleep(10)
+                    continue
             except Exception as e:
                 # TODO: raise exception
                 print(e)
+                print('sleep 10s...')
                 time.sleep(10)
-            else:
-                break
-        print(order_book)
+                continue
+        #print(order_book)
         return order_book
+
+    def get_currencies_amounts(self, symbols):
+        response = self.exchange_adapter.fetch_balance()
+        amounts = {}
+        for symbol in symbols:
+            try:
+                amounts[symbol] = response['free'][symbol]
+            except (TypeError, KeyError):
+                amounts[symbol] = 0
+        return amounts
 
     def get_currency_amount(self, symbol):
         response = self.exchange_adapter.fetch_balance()
@@ -54,16 +85,36 @@ class Trader:
         return
 
     def exec_forward_trade(self, symbol_BA, symbol_BC, symbol_CA, volume_BA, price_BC=None):
+        Slack.send_message('trade start: {}, volume: {}'.format(symbol_BA, volume_BA))
         curB_amount = self.trade(symbol_BA, 'buy', volume_BA)
+        Slack.send_message('trade complete: {}, amount: {}'.format(symbol_BA, curB_amount))
+        time.sleep(1)
+
+        Slack.send_message('trade start: {}, volume: {}'.format(symbol_BC, curB_amount))
         curC_amount = self.trade(symbol_BC, 'sell', curB_amount)
+        Slack.send_message('trade complete: {}, amount: {}'.format(symbol_BC, curC_amount))
+        time.sleep(1)
+
+        Slack.send_message('trade start: {}, volume: {}'.format(symbol_CA, curC_amount))
         curA_amount = self.trade(symbol_CA, 'sell', curC_amount)
+        Slack.send_message('trade complete: {}, amount: {}'.format(symbol_CA, curA_amount))
         return curA_amount
 
     def exec_reverse_trade(self, symbol_BA, symbol_BC, symbol_CA, volume_CA, price_BC):
+        Slack.send_message('trade start: {}, volume: {}'.format(symbol_CA, volume_CA))
         curC_amount = self.trade(symbol_CA, 'buy', volume_CA)
+        Slack.send_message('trade complete: {}, amount: {}'.format(symbol_CA, curC_amount))
+        time.sleep(1)
+
         volume_BC = curC_amount / price_BC
+        Slack.send_message('trade start: {}, volume: {}'.format(symbol_BC, volume_BC))
         curB_amount = self.trade(symbol_BC, 'buy', volume_BC)
+        Slack.send_message('trade complete: {}, amount: {}'.format(symbol_BC, curB_amount))
+        time.sleep(1)
+
+        Slack.send_message('trade start: {}, volume: {}'.format(symbol_BA, curB_amount))
         curA_amount = self.trade(symbol_BA, 'sell', curB_amount)
+        Slack.send_message('trade complete: {}, amount: {}'.format(symbol_BA, curA_amount))
         return curA_amount
 
     def trade(self, pair_symbol, side, amount):
@@ -75,13 +126,14 @@ class Trader:
             elif 'sell' == side:
                 response = exchange_adapter.create_market_sell_order(pair_symbol, amount)
         except ccxt.InvalidOrder as e:
-            msg = 'TRADE SKIPPED - invalid order: {}'.format(str(e))
+            msg = 'TRADE SKIPPED - invalid order: {}. pair: {}, side: {}, amount: {}'.format(str(e), pair_symbol, side, amount)
             raise TradeSkippedException(msg)
         except ccxt.InsufficientFunds:
-            msg = 'TRADE SKIPPED - insufficient balance'
+            msg = 'TRADE SKIPPED - insufficient balance. pair: {}, side: {}, amount: {}'.format(pair_symbol, side, amount)
             raise TradeSkippedException(msg)
         except Exception as e:
-            raise TradeSkippedException('unknown error taker_fee: {}'. format(str(e)))
+            msg = 'unknown error: {}. pair: {}, side: {}, amount: {}'.format(str(e), pair_symbol, side, amount)
+            raise TradeSkippedException(msg)
 
         order_id = response['id']
         while 1:

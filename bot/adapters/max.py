@@ -16,6 +16,52 @@ class MaxAdapter(Exchange):
         self.maker_fee_rate = 0.001
         self.taker_fee_rate = 0.0015
 
+    @staticmethod
+    def get_min_trade_volume_limit(symbol):
+        symbol = symbol.upper()
+        if 'TWD' == symbol:
+            return 250
+        elif 'BTC' == symbol:
+            return 0.0015
+        elif 'ETH' == symbol:
+            return 0.05
+        elif 'LTC' == symbol:
+            return 0.1112
+        elif 'BCH' == symbol:
+            return 0.03
+        elif 'MITH' == symbol:
+            return 190.0
+        elif 'USDT' == symbol:
+            return 8
+        elif 'TRX' == symbol:
+            return 340.0
+        elif 'CCCX' == symbol:
+            return 2100.0
+        elif 'EOS' == symbol:
+            return 1.7
+        elif 'BAT' == symbol:
+            return 20.0
+        elif 'ZRX' == symbol:
+            return 30.0
+        elif 'GNT' == symbol:
+            return 110.0
+        elif 'OMG' == symbol:
+            return 5.0
+        elif 'KNC' == symbol:
+            return 36.0
+        elif 'XRP' == symbol:
+            return 27.0
+        elif 'FMF' == symbol:
+            return 8000.0
+        elif 'MAX' == symbol:
+            return 100.0
+        elif 'SEELE' == symbol:
+            return 1180.0
+        elif 'BCNT' == symbol:
+            return 300.0
+        else:
+            return 0
+
     def fetch_order_book(self, symbol, limit=None, params=None):
         if limit is None:
             limit = 5
@@ -85,6 +131,7 @@ class MaxAdapter(Exchange):
         self.load_markets()
         market = self.markets[symbol]
         market_id = market['id']
+        response = None
         try:
             response = self.client.set_private_create_order(market_id, side, amount, price, stop_price, type)
         except HTTPError as e:

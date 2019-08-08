@@ -10,6 +10,9 @@ circle:
 circle-check:
 	python -m bin.circle_check
 
+circle-explore:
+	python -m bin.circle_explore
+
 swing:
 	python -m bin.swing
 

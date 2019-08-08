@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 
 import ccxt
-from secrets import BINANCE_KEY, BINANCE_SECRET
+from secrets import LIQUID_KEY, LIQUID_SECRET
 
 
-class BinanceAdapter:
+class LiquidAdapter:
     def __init__(self):
-        client = ccxt.binance({
-            'apiKey': BINANCE_KEY,
-            'secret': BINANCE_SECRET,
+        client = ccxt.liquid({
+            'apiKey': LIQUID_KEY,
+            'secret': LIQUID_SECRET,
         })
         self.client = client
         self.maker_fee_rate = 0.001

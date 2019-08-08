@@ -45,7 +45,8 @@ class Thinker:
         ratio = op_rate / real_price
         return ratio
 
-    def get_valid_forward_volume(self, max_curA_amount, min_curB_trade_volume_limit, curA_amount, price_BA, ask_volume_BA,
+    def get_valid_forward_volume(self, max_curA_amount, min_curA_trade_volume_limit, min_curB_trade_volume_limit,
+                                 min_curC_trade_volume_limit, curA_amount, price_BA, ask_volume_BA,
                                  bid_price_BC, bid_volume_BC, bid_volume_CA):
         # max_buy_side_currency_trade_amount: 買進最大金額上限 (config 設定)
         # min_order_volume: 買進最小成交量。需先把手續費加上去，避免賣出時的吃單量低於最小成交量限制
@@ -68,7 +69,6 @@ class Thinker:
         valid_BC_volume = min(possible_curC_volume, bid_volume_BC)
         # 實際上可以拿到的 curC
         real_valid_curC_amount = (valid_BC_volume * bid_price_BC) * (1 - self.exchange_adapter.taker_fee_rate)
-        print('real_valid_curC_amount', real_valid_curC_amount)
 
         # 可以吃下 C/A 的量
         valid_CA_volume = min(bid_volume_CA, real_valid_curC_amount)
@@ -76,29 +76,41 @@ class Thinker:
         needed_curC_amount = valid_CA_volume / (1 - self.exchange_adapter.taker_fee_rate)
         # 換算需要買多少 curB 才夠
         needed_curB_amount = (needed_curC_amount / bid_price_BC) / (1 - self.exchange_adapter.taker_fee_rate)
+        # 換算需要多少 curA 才夠
+        needed_curA_amount = (valid_volume_BA * price_BA) / (1 - self.exchange_adapter.taker_fee_rate)
 
         # 取到小數點第 8 位
-        floored_needed_volume = math.floor(needed_curB_amount * 100000000) / 100000000
+        floored_needed_curA_amount = self.get_floored_amount(needed_curA_amount)
+        floored_needed_curB_amount = self.get_floored_amount(needed_curB_amount)
+        floored_needed_curC_amount = self.get_floored_amount(needed_curC_amount)
 
-        # print('valid_curA_amount', valid_curA_amount)
-        # print('curB_possible_volume', curB_possible_volume)
-        # print('valid_volume_BA', valid_volume_BA)
-        # print('real_valid_volume_curB', real_valid_volume_curB)
-        # print('possible_curC_volume', possible_curC_volume)
-        # print('valid_BC_volume', valid_BC_volume)
-        # print('valid_CA_volume', valid_CA_volume)
-        # print('needed_curC_amount', needed_curC_amount)
-        # print('needed_curB_amount', needed_curB_amount)
-        # print(floored_needed_volume, min_curB_trade_volume)
+        print('valid_curA_amount', valid_curA_amount)
+        print('curB_possible_volume', curB_possible_volume)
+        print('valid_volume_BA', valid_volume_BA)
+        print('real_valid_volume_curB', real_valid_volume_curB)
+        print('possible_curC_volume', possible_curC_volume)
+        print('valid_BC_volume', valid_BC_volume)
+        print('valid_CA_volume', valid_CA_volume)
+        print('needed_curC_amount', needed_curC_amount)
+        print('needed_curB_amount', needed_curB_amount)
+        print('needed_curA_amount', needed_curA_amount)
 
-        # 實際要交易的量
-        if floored_needed_volume < min_curB_trade_volume:
-            # 未達最小交易量設定
+        # 是否達最小交易量
+        if floored_needed_curA_amount < min_curA_trade_volume_limit:
+            return 0
+        elif floored_needed_curB_amount < min_curB_trade_volume_limit:
+            return 0
+        elif floored_needed_curC_amount < min_curC_trade_volume_limit:
             return 0
         else:
-            return floored_needed_volume
+            return floored_needed_curB_amount
 
-    def get_valid_reverse_volume(self, max_curA_amount, min_curC_trade_volume_limit, curA_amount, price_CA, ask_volume_CA,
+    @staticmethod
+    def get_floored_amount(amount):
+        return math.floor(amount * 100000000) / 100000000
+
+    def get_valid_reverse_volume(self, max_curA_amount, min_curA_trade_volume_limit, min_curB_trade_volume_limit,
+                                 min_curC_trade_volume_limit, curA_amount, price_CA, ask_volume_CA,
                                  ask_price_BC, ask_volume_BC, bid_volume_BA):
         # max_buy_side_currency_trade_amount: 買進最大金額上限 (config 設定)
         # min_order_volume: 買進最小成交量。需先把手續費加上去，避免賣出時的吃單量低於最小成交量限制
@@ -128,24 +140,32 @@ class Thinker:
         needed_curB_amount = valid_BA_volume / (1 - self.exchange_adapter.taker_fee_rate)
         # 換算需要買多少 curC 才夠
         needed_curC_amount = (needed_curB_amount * ask_price_BC) / (1 - self.exchange_adapter.taker_fee_rate)
+        # 換算需要多少 curA 才夠
+        needed_curA_amount = (valid_volume_CA * price_CA) / (1 - self.exchange_adapter.taker_fee_rate)
+
 
         # 取到小數點第 8 位
-        floored_needed_volume = math.floor(needed_curC_amount * 100000000) / 100000000
+        floored_needed_curA_amount = self.get_floored_amount(needed_curA_amount)
+        floored_needed_curB_amount = self.get_floored_amount(needed_curB_amount)
+        floored_needed_curC_amount = self.get_floored_amount(needed_curC_amount)
 
-        # print('valid_curA_amount', valid_curA_amount)
-        # print('possible_curC_volume', possible_curC_volume)
-        # print('real_valid_volume_curC', real_valid_volume_curC)
-        # print('possible_curB_volume', possible_curB_volume)
-        # print('valid_BC_volume', valid_BC_volume)
-        # print('real_valid_curB_amount', real_valid_curB_amount)
-        # print('valid_BA_volume', valid_BA_volume)
-        # print('needed_curB_amount', needed_curB_amount)
-        # print('needed_curC_amount', needed_curC_amount)
-        # print('floored_needed_volume', floored_needed_volume)
+        print('valid_curA_amount', valid_curA_amount)
+        print('possible_curC_volume', possible_curC_volume)
+        print('real_valid_volume_curC', real_valid_volume_curC)
+        print('possible_curB_volume', possible_curB_volume)
+        print('valid_BC_volume', valid_BC_volume)
+        print('real_valid_curB_amount', real_valid_curB_amount)
+        print('valid_BA_volume', valid_BA_volume)
+        print('needed_curB_amount', needed_curB_amount)
+        print('needed_curC_amount', needed_curC_amount)
+        print('needed_curA_amount', needed_curA_amount)
 
-        # 實際要交易的量
-        if floored_needed_volume < min_curC_trade_volume:
-            # 未達最小交易量設定
+        # 是否達最小交易量
+        if floored_needed_curA_amount < min_curA_trade_volume_limit:
+            return 0
+        elif floored_needed_curB_amount < min_curB_trade_volume_limit:
+            return 0
+        elif floored_needed_curC_amount < min_curC_trade_volume_limit:
             return 0
         else:
-            return floored_needed_volume
+            return floored_needed_curC_amount
