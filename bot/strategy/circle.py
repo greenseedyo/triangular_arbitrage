@@ -8,6 +8,7 @@ import time
 import logging
 import matplotlib.pyplot as plt
 import pandas
+import os
 from pprint import pprint
 
 
@@ -107,7 +108,7 @@ def explore():
                 except Exception as e:
                     print(e)
                     logging.exception(e)
-                time.sleep(2)
+                time.sleep(5)
         #time.sleep(10)
         print('---------------------------------------------------------------------')
 
@@ -324,6 +325,9 @@ def log_balance(trader, symbols):
 
 def write_log(log_name, msg):
     log_file = 'logs/{}.log'.format(log_name)
+    dir_path = os.path.dirname(os.path.realpath(log_file))
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
     with open(log_file, 'a') as the_file:
         the_file.write(msg)
         the_file.write('\n')
