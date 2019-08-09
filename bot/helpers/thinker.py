@@ -48,12 +48,7 @@ class Thinker:
     def get_valid_forward_volume(self, max_curA_amount, min_curA_trade_volume_limit, min_curB_trade_volume_limit,
                                  min_curC_trade_volume_limit, curA_amount, price_BA, ask_volume_BA,
                                  bid_price_BC, bid_volume_BC, bid_volume_CA):
-        # max_buy_side_currency_trade_amount: 買進最大金額上限 (config 設定)
-        # min_order_volume: 買進最小成交量。需先把手續費加上去，避免賣出時的吃單量低於最小成交量限制
-        # 例：MAX 交易所的 ETH 最低交易量為 0.05，手續費為 0.15%
-        # 若買進 0.05，實際上只買到 0.049925，未達最低交易量，就沒辦法再賣出)
-        min_curB_trade_volume = min_curB_trade_volume_limit / (1 - self.exchange_adapter.taker_fee_rate)
-
+        print('input: ', locals())
         # curA 可用金額
         valid_curA_amount = min(max_curA_amount, curA_amount)
         # curA 可用金額換算可買的 curB
@@ -63,10 +58,8 @@ class Thinker:
         # 扣手續費後可拿到的 curB
         real_valid_volume_curB = valid_volume_BA * (1 - self.exchange_adapter.taker_fee_rate)
 
-        # 拿到的 curB 可以換到多少 curC
-        possible_curC_volume = real_valid_volume_curB * bid_price_BC
         # B/C 可吃單的量
-        valid_BC_volume = min(possible_curC_volume, bid_volume_BC)
+        valid_BC_volume = min(real_valid_volume_curB, bid_volume_BC)
         # 實際上可以拿到的 curC
         real_valid_curC_amount = (valid_BC_volume * bid_price_BC) * (1 - self.exchange_adapter.taker_fee_rate)
 
@@ -88,8 +81,8 @@ class Thinker:
         print('curB_possible_volume', curB_possible_volume)
         print('valid_volume_BA', valid_volume_BA)
         print('real_valid_volume_curB', real_valid_volume_curB)
-        print('possible_curC_volume', possible_curC_volume)
         print('valid_BC_volume', valid_BC_volume)
+        print('real_valid_curC_amount', real_valid_curC_amount)
         print('valid_CA_volume', valid_CA_volume)
         print('needed_curC_amount', needed_curC_amount)
         print('needed_curB_amount', needed_curB_amount)
@@ -112,12 +105,7 @@ class Thinker:
     def get_valid_reverse_volume(self, max_curA_amount, min_curA_trade_volume_limit, min_curB_trade_volume_limit,
                                  min_curC_trade_volume_limit, curA_amount, price_CA, ask_volume_CA,
                                  ask_price_BC, ask_volume_BC, bid_volume_BA):
-        # max_buy_side_currency_trade_amount: 買進最大金額上限 (config 設定)
-        # min_order_volume: 買進最小成交量。需先把手續費加上去，避免賣出時的吃單量低於最小成交量限制
-        # 例：MAX 交易所的 ETH 最低交易量為 0.05，手續費為 0.15%
-        # 若買進 0.05，實際上只買到 0.049925，未達最低交易量，就沒辦法再賣出)
-        min_curC_trade_volume = min_curC_trade_volume_limit / (1 - self.exchange_adapter.taker_fee_rate)
-
+        print('input: ', locals())
         # curA 可用金額
         valid_curA_amount = min(max_curA_amount, curA_amount)
         # curA 可用金額換算可買到的 curC

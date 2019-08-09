@@ -32,11 +32,11 @@ def check():
     # enabled_curB_candidates = ['BTC', 'ETH', 'LTC', 'BCH', 'MITH', 'USDT', 'TRX', 'EOS', 'BAT', 'ZRX', 'GNT', 'OMG', 'KNC', 'XRP']
 
     curA = 'TWD'
-    curB = 'XRP'
+    curB = 'BTC'
     curC = 'USDT'
 
     # 交易金額上限設定 (測試時可設定較少金額)
-    max_curA_trade_amount = 10000
+    max_curA_trade_amount = 1000
 
     exchange = 'max'
     config = {
@@ -47,7 +47,7 @@ def check():
         'threshold_forward': 0.996,  # 順向
         'threshold_reverse': 1.004,  # 逆向
         'exchange': exchange,
-        'mode': 'test_mode',
+        'mode': 'test_trade',
     }
     try:
         run_one(config)
@@ -123,8 +123,8 @@ def run():
     max_curA_trade_amount = 100000
 
     # 可執行交易的 (操作匯率 / 銀行匯率) 閥值設定
-    threshold_forward = 0.996  # 順向
-    threshold_reverse = 1.004  # 逆向
+    threshold_forward = 0.995  # 順向
+    threshold_reverse = 1.005  # 逆向
 
     # 交易所設定
     exchange = 'max'
@@ -311,6 +311,7 @@ def log_trade(formatted_time, direction, curA, curB, curC, take_volume, ratio):
     trade_msg = '{}, {}, {}-{}-{}, {}{}, {}'.format(formatted_time, direction, curA, curB,
                                                     curC, take_volume, start_cur, ratio)
     print(trade_msg)
+    Slack.send_message(trade_msg)
     write_log('trade', trade_msg)
 
 
