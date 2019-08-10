@@ -25,15 +25,6 @@ class Trader:
     def get_min_trade_volume_limit(self, symbol):
         return self.exchange_adapter.get_min_trade_volume_limit(symbol)
 
-    def get_balance_info(self, symbols):
-        info = []
-        info.append('[{}]'.format(time.strftime('%c')))
-        info.append('exchange: {}'.format(self.exchange))
-        for symbol in symbols:
-            amount = self.get_currency_amount(symbol)
-            info.append('{}: {}'.format(symbol, amount))
-        return info
-
     def get_order_book(self, pair_symbol, limit):
         adapter = self.exchange_adapter
         order_book = None

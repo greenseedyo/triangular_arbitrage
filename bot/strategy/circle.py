@@ -53,9 +53,11 @@ def check():
         run_one(config)
     except Exception as e:
         print(e)
-    #trader = Trader(config)
+    trader = Trader(config)
+    amounts= trader.get_currencies_amounts([curA, curB, curC])
+    log_balance(exchange, amounts=amounts)
+
     #print(trader.get_curB_amount())
-    #info = trader.get_balance_info()
     #print("\n".join(info))
     #print(trader.exchange_adapter.markets['ETH/USDT'])
     #trader.exchange_adapter.create_market_sell_order('ETH/USDT', 0.05, {'type': 'market'})
@@ -262,6 +264,7 @@ def run_one(config):
             raise ValueError('direction must be forward or reverse')
 
         if take_volume > 0:
+            amounts_before = trader.get_currencies_amounts([curA, curB, curC])
             log_trade(time.strftime('%c'), direction, curA, curB,
                       curC, take_volume, ratio)
             try:
@@ -271,7 +274,8 @@ def run_one(config):
                 logging.exception(e)
             # 取得最新結餘資訊
             time.sleep(2)
-            log_balance(trader, [curA, curB, curC])
+            amounts_after = trader.get_currencies_amounts([curA, curB, curC])
+            log_balance(exchange, amounts=amounts_after, amounts_before=amounts_before)
 
     if 'test_trade' == mode or 'test_real_trade' == mode:
         exec_trade('reverse')
@@ -315,13 +319,23 @@ def log_trade(formatted_time, direction, curA, curB, curC, take_volume, ratio):
     write_log('trade', trade_msg)
 
 
-def log_balance(trader, symbols):
-    info = trader.get_balance_info(symbols)
-    balance_msg = "\n".join(info)
+def log_balance(exchange, amounts, amounts_before=None):
+    info = []
+    info.append('[{}]'.format(time.strftime('%c')))
+    info.append('exchange: {}'.format(exchange))
+    for symbol in amounts:
+        amount = amounts[symbol]
+        if isinstance(amounts_before, dict):
+            amount_before = amounts_before[symbol]
+            diff = amount - amount_before
+            info.append('{}: {} ({})'.format(symbol, amount, diff))
+        else:
+            info.append('{}: {}'.format(symbol, amount))
+    msg = "\n".join(info)
     print('[NEW BALANCE INFO]')
-    print(balance_msg)
-    Slack.send_message(balance_msg)
-    write_log('balance', balance_msg)
+    print(msg)
+    Slack.send_message(msg)
+    write_log('balance', msg)
 
 
 def write_log(log_name, msg):
