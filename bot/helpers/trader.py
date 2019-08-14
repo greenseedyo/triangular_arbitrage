@@ -6,6 +6,7 @@ import ccxt
 import urllib
 from urllib import error
 from bot.helpers.slack import Slack
+import bot.helpers.utils as utils
 
 
 def get_exchange_adapter(exchange_name):
@@ -76,39 +77,36 @@ class Trader:
         return
 
     def exec_forward_trade(self, symbol_BA, symbol_BC, symbol_CA, volume_BA, price_BC=None):
-        Slack.send_message('trade start: {}, volume: {}'.format(symbol_BA, volume_BA))
         curB_amount = self.trade(symbol_BA, 'buy', volume_BA)
-        Slack.send_message('trade complete: {}, amount: {}'.format(symbol_BA, curB_amount))
         time.sleep(1)
 
-        Slack.send_message('trade start: {}, volume: {}'.format(symbol_BC, curB_amount))
         curC_amount = self.trade(symbol_BC, 'sell', curB_amount)
-        Slack.send_message('trade complete: {}, amount: {}'.format(symbol_BC, curC_amount))
         time.sleep(1)
 
-        Slack.send_message('trade start: {}, volume: {}'.format(symbol_CA, curC_amount))
         curA_amount = self.trade(symbol_CA, 'sell', curC_amount)
-        Slack.send_message('trade complete: {}, amount: {}'.format(symbol_CA, curA_amount))
         return curA_amount
 
     def exec_reverse_trade(self, symbol_BA, symbol_BC, symbol_CA, volume_CA, price_BC):
-        Slack.send_message('trade start: {}, volume: {}'.format(symbol_CA, volume_CA))
         curC_amount = self.trade(symbol_CA, 'buy', volume_CA)
-        Slack.send_message('trade complete: {}, amount: {}'.format(symbol_CA, curC_amount))
         time.sleep(1)
 
         volume_BC = curC_amount / price_BC
-        Slack.send_message('trade start: {}, volume: {}'.format(symbol_BC, volume_BC))
-        curB_amount = self.trade(symbol_BC, 'buy', volume_BC)
-        Slack.send_message('trade complete: {}, amount: {}'.format(symbol_BC, curB_amount))
+        decrease_step = volume_BC * 0.004
+        # 若價格瞬間上漲，curC_amount 可能不夠買 volume_BC，就減少 volume_BC，買到為止
+        while 1:
+            try:
+                curB_amount = self.trade(symbol_BC, 'buy', volume_BC)
+                break
+            except InsufficientFundsException:
+                Slack.send_message('insufficient funds, decrease volume by {}'.format(decrease_step))
+                volume_BC = volume_BC - decrease_step
         time.sleep(1)
 
-        Slack.send_message('trade start: {}, volume: {}'.format(symbol_BA, curB_amount))
         curA_amount = self.trade(symbol_BA, 'sell', curB_amount)
-        Slack.send_message('trade complete: {}, amount: {}'.format(symbol_BA, curA_amount))
         return curA_amount
 
     def trade(self, pair_symbol, side, amount):
+        Slack.send_message('trade start: {}, {} volume: {}'.format(pair_symbol, side, amount))
         exchange_adapter = self.exchange_adapter
         response = {}
         try:
@@ -121,7 +119,7 @@ class Trader:
             raise TradeSkippedException(msg)
         except ccxt.InsufficientFunds:
             msg = 'TRADE SKIPPED - insufficient balance. pair: {}, side: {}, amount: {}'.format(pair_symbol, side, amount)
-            raise TradeSkippedException(msg)
+            raise InsufficientFundsException(msg)
         except Exception as e:
             msg = 'unknown error: {}. pair: {}, side: {}, amount: {}'.format(str(e), pair_symbol, side, amount)
             raise TradeSkippedException(msg)
@@ -150,10 +148,15 @@ class Trader:
                     fee = order['filled'] * exchange_adapter.taker_fee_rate
                 got_amount = order['filled'] - fee
             else:
-                fee = order['filled'] * exchange_adapter.taker_fee_rate
+                fee = order['cost'] * exchange_adapter.taker_fee_rate
                 got_amount = order['cost'] - fee
+            Slack.send_message('trade complete: {}, got amount: {}'.format(pair_symbol, got_amount))
             return got_amount
 
 
 class TradeSkippedException(Exception):
+    pass
+
+
+class InsufficientFundsException(TradeSkippedException):
     pass

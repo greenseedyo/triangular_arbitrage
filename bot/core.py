@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
-from . import helpers
+from bot.helpers import swing_helpers
+
 import time
 import logging
 import matplotlib.pyplot as plt
@@ -44,7 +45,7 @@ def check():
         run_one(config)
     except Exception as e:
         print(e)
-    trader = helpers.Trader(config)
+    trader = swing_helpers.Trader(config)
     #print(trader.get_bridge_currency_amount_in_secondary_exchange())
     #print(trader.get_real_rate())
     #info = trader.get_balance_info()
@@ -137,14 +138,14 @@ def swing():
                 'mode': 'production',
             }
             try:
-                swing_run_one(config)
+                run_one(config)
             except Exception as e:
                 print(e)
                 logging.exception(e)
             time.sleep(30)
 
 
-def swing_run_one(config):
+def run_one(config):
     first_currency = config['first_currency']
     bridge_currency = config['bridge_currency']
     second_currency = config['second_currency']
@@ -152,9 +153,9 @@ def swing_run_one(config):
     print('[{}]'.format(time.strftime('%c')))
     print('{} - {} - {}'.format(first_currency, bridge_currency, second_currency))
 
-    trader = helpers.Trader(config)
+    trader = swing_helpers.Trader(config)
     config['real_rate'] = trader.get_real_rate()
-    thinker = helpers.Thinker(config)
+    thinker = swing_helpers.Thinker(config)
 
     # 取得第一交易所的加密貨幣報價
     primary_order_book = trader.get_primary_order_book(1)
@@ -198,7 +199,7 @@ def swing_run_one(config):
             raise ValueError('direction must be forward or reverse')
 
         # 計算買進/賣出量
-        take_volume = thinker.get_swing_valid_volume(direction,
+        take_volume = thinker.get_valid_volume(direction,
                                                      buy_side_currency_amount=buy_side_currency_amount,
                                                      buy_side_lowest_ask_price=buy_side_lowest_ask_price,
                                                      buy_side_lowest_ask_volume=buy_side_lowest_ask_volume,
@@ -210,7 +211,7 @@ def swing_run_one(config):
             try:
                 method = getattr(trader, trade_method)
                 method(take_volume)
-            except helpers.TradeSkippedException as e:
+            except swing_helpers.TradeSkippedException as e:
                 logging.exception(e)
             # 取得最新結餘資訊
             log_balance(trader)

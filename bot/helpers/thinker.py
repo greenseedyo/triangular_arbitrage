@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import sys
-import math
+import bot.helpers.utils as utils
 
 
 def get_exchange_adapter(exchange_name):
@@ -73,9 +73,9 @@ class Thinker:
         needed_curA_amount = (valid_volume_BA * price_BA) / (1 - self.exchange_adapter.taker_fee_rate)
 
         # 取到小數點第 8 位
-        floored_needed_curA_amount = self.get_floored_amount(needed_curA_amount)
-        floored_needed_curB_amount = self.get_floored_amount(needed_curB_amount)
-        floored_needed_curC_amount = self.get_floored_amount(needed_curC_amount)
+        floored_needed_curA_amount = utils.get_floored_amount(needed_curA_amount)
+        floored_needed_curB_amount = utils.get_floored_amount(needed_curB_amount)
+        floored_needed_curC_amount = utils.get_floored_amount(needed_curC_amount)
 
         print('valid_curA_amount', valid_curA_amount)
         print('curB_possible_volume', curB_possible_volume)
@@ -97,10 +97,6 @@ class Thinker:
             return 0
         else:
             return floored_needed_curB_amount
-
-    @staticmethod
-    def get_floored_amount(amount):
-        return math.floor(amount * 100000000) / 100000000
 
     def get_valid_reverse_volume(self, max_curA_amount, min_curA_trade_volume_limit, min_curB_trade_volume_limit,
                                  min_curC_trade_volume_limit, curA_amount, price_CA, ask_volume_CA,
@@ -133,9 +129,9 @@ class Thinker:
 
 
         # 取到小數點第 8 位
-        floored_needed_curA_amount = self.get_floored_amount(needed_curA_amount)
-        floored_needed_curB_amount = self.get_floored_amount(needed_curB_amount)
-        floored_needed_curC_amount = self.get_floored_amount(needed_curC_amount)
+        floored_needed_curA_amount = utils.get_floored_amount(needed_curA_amount)
+        floored_needed_curB_amount = utils.get_floored_amount(needed_curB_amount)
+        floored_needed_curC_amount = utils.get_floored_amount(needed_curC_amount)
 
         print('valid_curA_amount', valid_curA_amount)
         print('possible_curC_volume', possible_curC_volume)

@@ -269,7 +269,7 @@ class Thinker:
         ratio = op_rate / self.real_rate
         return ratio
 
-    def get_swing_valid_volume(self, direction, buy_side_currency_amount, buy_side_lowest_ask_price, buy_side_lowest_ask_volume,
+    def get_valid_volume(self, direction, buy_side_currency_amount, buy_side_lowest_ask_price, buy_side_lowest_ask_volume,
                          sell_side_currency_amount, sell_side_highest_bid_volume):
         # max_buy_side_currency_trade_amount: 買進最大金額上限 (config 設定)
         # min_order_volume: 買進最小成交量。需先把手續費加上去，避免賣出時的吃單量低於最小成交量限制
@@ -338,12 +338,6 @@ class Thinker:
 
     def get_max_second_currency_trade_amount(self):
         return self.max_first_currency_trade_amount / self.real_rate
-
-    def get_trade_type(self):
-        if self.primary_exchange == self.secondary_exchange:
-            return 'circle'
-        else:
-            return 'swing'
 
 
 class TradeSkippedException(Exception):

@@ -132,6 +132,7 @@ class MaxAdapter(Exchange):
         market = self.markets[symbol]
         market_id = market['id']
         response = None
+        amount = self.amount_to_precision(symbol, amount)
         try:
             response = self.client.set_private_create_order(market_id, side, amount, price, stop_price, type)
         except HTTPError as e:

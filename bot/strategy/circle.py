@@ -32,7 +32,7 @@ def check():
     # enabled_curB_candidates = ['BTC', 'ETH', 'LTC', 'BCH', 'MITH', 'USDT', 'TRX', 'EOS', 'BAT', 'ZRX', 'GNT', 'OMG', 'KNC', 'XRP']
 
     curA = 'TWD'
-    curB = 'BTC'
+    curB = 'ZRX'
     curC = 'USDT'
 
     # 交易金額上限設定 (測試時可設定較少金額)
@@ -53,9 +53,9 @@ def check():
         run_one(config)
     except Exception as e:
         print(e)
-    trader = Trader(config)
-    amounts= trader.get_currencies_amounts([curA, curB, curC])
-    log_balance(exchange, amounts=amounts)
+    #trader = Trader(config)
+    #amounts= trader.get_currencies_amounts([curA, curB, curC])
+    #log_balance(exchange, amounts=amounts)
 
     #print(trader.get_curB_amount())
     #print("\n".join(info))
@@ -116,7 +116,7 @@ def explore():
 
 
 def run():
-    curB_candidates = ['BTC', 'ETH', 'LTC', 'BCH', 'MITH', 'USDT', 'TRX', 'EOS', 'BAT', 'ZRX', 'GNT', 'OMG', 'KNC', 'XRP']
+    curB_candidates = ['MAX', 'BTC', 'ETH', 'LTC', 'BCH', 'MITH', 'USDT', 'TRX', 'EOS', 'BAT', 'ZRX', 'GNT', 'OMG', 'KNC', 'XRP']
     curC_candidates = ['MAX', 'USDT', 'ETH', 'BTC']
 
     curA = 'TWD'
