@@ -68,26 +68,42 @@ class Trader:
     def get_currency_amount(self, symbol):
         response = self.exchange_adapter.fetch_balance()
         try:
-            return response['free'][symbol]
+            amount = response['free'][symbol]
+            if amount is None:
+                return 0
+            else:
+                return amount
         except (TypeError, KeyError):
             return 0
 
-    def exec_test_trade(self, symbol_BA, symbol_BC, symbol_CA, volume, price_BC=None):
-        print('test trade {}-{}-{}, volume: {}'.format(symbol_BA, symbol_BC, symbol_CA, volume))
+    def exec_test_trade(self, symbol_BA, symbol_BC, symbol_CA, volume,
+                        price_BA, price_BC, price_CA):
+        print('test trade {}-{}-{}, volume: {}, prices: {}, {}, {}'.format(
+            symbol_BA, symbol_BC, symbol_CA, volume, price_BA, price_BC, price_CA))
         return
 
-    def exec_forward_trade(self, symbol_BA, symbol_BC, symbol_CA, volume_BA, price_BC=None):
-        curB_amount = self.trade(symbol_BA, 'buy', volume_BA)
+    def exec_forward_trade(self, symbol_BA, symbol_BC, symbol_CA, volume_BA,
+                           price_BA, price_BC, price_CA):
+        Slack.send_message('start FORWARD trade, detected prices:\n{}: {}\n{}: {}\n{}: {}'.format(
+            symbol_BA, price_BA, symbol_BC, price_BC, symbol_CA, price_CA
+        ))
+
+        curB_amount = self.trade(symbol_BA, 'buy', volume_BA, price_BA)
         time.sleep(1)
 
-        curC_amount = self.trade(symbol_BC, 'sell', curB_amount)
+        curC_amount = self.trade(symbol_BC, 'sell', curB_amount, price_BC)
         time.sleep(1)
 
-        curA_amount = self.trade(symbol_CA, 'sell', curC_amount)
+        curA_amount = self.trade(symbol_CA, 'sell', curC_amount, price_CA)
         return curA_amount
 
-    def exec_reverse_trade(self, symbol_BA, symbol_BC, symbol_CA, volume_CA, price_BC):
-        curC_amount = self.trade(symbol_CA, 'buy', volume_CA)
+    def exec_reverse_trade(self, symbol_BA, symbol_BC, symbol_CA, volume_CA,
+                           price_BA, price_BC, price_CA):
+        Slack.send_message('start REVERSE trade, detected prices:\n{}: {}\n{}: {}\n{}: {}'.format(
+            symbol_BA, price_BA, symbol_BC, price_BC, symbol_CA, price_CA
+        ))
+
+        curC_amount = self.trade(symbol_CA, 'buy', volume_CA, price_CA)
         time.sleep(1)
 
         volume_BC = curC_amount / price_BC
@@ -95,36 +111,39 @@ class Trader:
         # 若價格瞬間上漲，curC_amount 可能不夠買 volume_BC，就減少 volume_BC，買到為止
         while 1:
             try:
-                curB_amount = self.trade(symbol_BC, 'buy', volume_BC)
+                curB_amount = self.trade(symbol_BC, 'buy', volume_BC, price_BC)
                 break
             except InsufficientFundsException:
-                Slack.send_message('insufficient funds, decrease volume by {}'.format(decrease_step))
+                Slack.send_message('Insufficient funds.\nDecrease volume by {}'.format(decrease_step))
                 volume_BC = volume_BC - decrease_step
         time.sleep(1)
 
-        curA_amount = self.trade(symbol_BA, 'sell', curB_amount)
+        curA_amount = self.trade(symbol_BA, 'sell', curB_amount, price_BA)
         return curA_amount
 
-    def trade(self, pair_symbol, side, amount):
-        Slack.send_message('trade start: {}, {} volume: {}'.format(pair_symbol, side, amount))
+    def trade(self, pair_symbol, side, amount, price):
+        Slack.send_message('Trade start: {0}\n{1} volume: {2:.8f}'.format(pair_symbol, side, amount))
         exchange_adapter = self.exchange_adapter
         response = {}
         try:
             if 'buy' == side:
-                response = exchange_adapter.create_market_buy_order(pair_symbol, amount)
+                acceptable_price = price * 1.01
+                response = exchange_adapter.create_limit_buy_order(pair_symbol, amount, acceptable_price)
             elif 'sell' == side:
-                response = exchange_adapter.create_market_sell_order(pair_symbol, amount)
+                acceptable_price = price * 0.99
+                response = exchange_adapter.create_limit_sell_order(pair_symbol, amount, acceptable_price)
         except ccxt.InvalidOrder as e:
-            msg = 'TRADE SKIPPED - invalid order: {}. pair: {}, side: {}, amount: {}'.format(str(e), pair_symbol, side, amount)
+            msg = 'TRADE SKIPPED - invalid order: {0}. pair: {1}, side: {2}, amount: {3:.8f}'.format(str(e), pair_symbol, side, amount)
             raise TradeSkippedException(msg)
         except ccxt.InsufficientFunds:
-            msg = 'TRADE SKIPPED - insufficient balance. pair: {}, side: {}, amount: {}'.format(pair_symbol, side, amount)
+            msg = 'TRADE SKIPPED - insufficient balance. pair: {0}, side: {1}, amount: {2:.8f}'.format(pair_symbol, side, amount)
             raise InsufficientFundsException(msg)
         except Exception as e:
-            msg = 'unknown error: {}. pair: {}, side: {}, amount: {}'.format(str(e), pair_symbol, side, amount)
+            msg = 'Unknown error: {0}. pair: {1}, side: {2}, amount: {3:.8f}'.format(str(e), pair_symbol, side, amount)
             raise TradeSkippedException(msg)
 
         order_id = response['id']
+        tmp_timestamp = time.time()
         while 1:
             try:
                 order = exchange_adapter.fetch_order(order_id, pair_symbol)
@@ -135,6 +154,10 @@ class Trader:
                     continue
 
             if 'closed' != order['status']:
+                current_timestamp = time.time()
+                if (current_timestamp - tmp_timestamp > 1800):
+                    Slack.send_message('The trade is still uncompleted...')
+                    tmp_timestamp = current_timestamp
                 time.sleep(0.5)
                 continue
 
@@ -150,7 +173,7 @@ class Trader:
             else:
                 fee = order['cost'] * exchange_adapter.taker_fee_rate
                 got_amount = order['cost'] - fee
-            Slack.send_message('trade complete: {}, got amount: {}'.format(pair_symbol, got_amount))
+            Slack.send_message('Trade complete: {0}\ngot amount: {1:.8f}'.format(pair_symbol, got_amount))
             return got_amount
 
 

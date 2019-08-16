@@ -83,8 +83,8 @@ def explore():
     max_curA_trade_amount = 1000
 
     # 可執行交易的 (操作匯率 / 銀行匯率) 閥值設定
-    threshold_forward = 0.996  # 順向
-    threshold_reverse = 1.004  # 逆向
+    threshold_forward = 0.9965  # 順向
+    threshold_reverse = 1.0035  # 逆向
 
     # 交易所設定
     exchange = 'liquid'
@@ -122,7 +122,7 @@ def run():
     curA = 'TWD'
 
     # 交易金額上限設定 (測試時可設定較少金額)
-    max_curA_trade_amount = 100000
+    max_curA_trade_amount = 10000
 
     # 可執行交易的 (操作匯率 / 銀行匯率) 閥值設定
     threshold_forward = 0.995  # 順向
@@ -213,8 +213,8 @@ def run_one(config):
     # 計算操作匯率
     forward_ratio = thinker.get_op_ratio(lowest_ask_price_BA, highest_bid_price_BC, highest_bid_price_CA)
     reverse_ratio = thinker.get_op_ratio(highest_bid_price_BA, lowest_ask_price_BC, lowest_ask_price_CA)
-    print('forward ratio: {}'.format(forward_ratio))
-    print('reverse ratio: {}'.format(reverse_ratio))
+    print('Forward ratio: {0:.8f}'.format(forward_ratio))
+    print('Reverse ratio: {0:.8f}'.format(reverse_ratio))
     ratio_log = '{},{},{}'.format(int(time.time()), forward_ratio, reverse_ratio)
 
     log_name_suffix = '{}-{}-{}'.format(curA, curB, curC)
@@ -226,10 +226,12 @@ def run_one(config):
 
     def exec_trade(direction):
         trade_method = 'exec_test_trade'
-        price_BC = None
         if 'forward' == direction:
             ratio = forward_ratio
             curA_amount = trader.get_currency_amount(curA)
+            price_BA = lowest_ask_price_BA
+            price_BC = highest_bid_price_BC
+            price_CA = highest_bid_price_CA
             take_volume = thinker.get_valid_forward_volume(max_curA_amount=max_curA_trade_amount,
                                                            min_curA_trade_volume_limit=min_curA_trade_volume_limit,
                                                            min_curB_trade_volume_limit=min_curB_trade_volume_limit,
@@ -245,7 +247,9 @@ def run_one(config):
                 trade_method = 'exec_forward_trade'
         elif 'reverse' == direction:
             ratio = reverse_ratio
+            price_BA = highest_bid_price_BA
             price_BC = lowest_ask_price_BC
+            price_CA = lowest_ask_price_CA
             curA_amount = trader.get_currency_amount(curA)
             take_volume = thinker.get_valid_reverse_volume(max_curA_amount=max_curA_trade_amount,
                                                            min_curA_trade_volume_limit=min_curA_trade_volume_limit,
@@ -269,7 +273,7 @@ def run_one(config):
                       curC, take_volume, ratio)
             try:
                 method = getattr(trader, trade_method)
-                method(symbol_BA, symbol_BC, symbol_CA, take_volume, price_BC)
+                method(symbol_BA, symbol_BC, symbol_CA, take_volume, price_BA, price_BC, price_CA)
             except TradeSkippedException as e:
                 logging.exception(e)
             # 取得最新結餘資訊
@@ -299,7 +303,7 @@ def run_one(config):
 
 
 def log_opportunity(exchange, log_name_suffix, direction, volume, cur, ratio):
-    msg = '[{}] {} OPPORTUNITY: possible volume: {}{}, ratio: {}'.format(
+    msg = '[{0}] {1} OPPORTUNITY: possible volume: {2:.8f}{3}, ratio: {4:.8f}'.format(
         time.strftime('%c'), direction.upper(), volume, cur, ratio)
     print(msg)
     write_log('opportunity/{}/{}'.format(exchange, log_name_suffix), msg)
@@ -312,7 +316,7 @@ def log_trade(formatted_time, direction, curA, curB, curC, take_volume, ratio):
         start_cur = curC
     else:
         raise ValueError('direction must be forward or reverse')
-    trade_msg = '{}, {}, {}-{}-{}, {}{}, {}'.format(formatted_time, direction, curA, curB,
+    trade_msg = '[{0}]\n{1}: {2}-{3}-{4}\nVolume: {5:.8f}{6}\nRatio: {7:.8f}'.format(formatted_time, direction.upper(), curA, curB,
                                                     curC, take_volume, start_cur, ratio)
     print(trade_msg)
     Slack.send_message(trade_msg)
@@ -322,15 +326,15 @@ def log_trade(formatted_time, direction, curA, curB, curC, take_volume, ratio):
 def log_balance(exchange, amounts, amounts_before=None):
     info = []
     info.append('[{}]'.format(time.strftime('%c')))
-    info.append('exchange: {}'.format(exchange))
+    info.append('Exchange: {}'.format(exchange))
     for symbol in amounts:
         amount = amounts[symbol]
         if isinstance(amounts_before, dict):
             amount_before = amounts_before[symbol]
             diff = amount - amount_before
-            info.append('{}: {} ({})'.format(symbol, amount, diff))
+            info.append('{0}: {1:.8f} ({2:.8f})'.format(symbol, amount, diff))
         else:
-            info.append('{}: {}'.format(symbol, amount))
+            info.append('{0}: {1:.8f}'.format(symbol, amount))
     msg = "\n".join(info)
     print('[NEW BALANCE INFO]')
     print(msg)
