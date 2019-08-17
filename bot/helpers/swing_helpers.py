@@ -302,40 +302,6 @@ class Thinker:
         else:
             return rounded_valid_take_volume
 
-
-    def get_valid_volume(self, direction, buy_side_currency_amount, buy_side_lowest_ask_price, buy_side_lowest_ask_volume,
-                         sell_side_currency_amount, sell_side_highest_bid_volume):
-        # max_buy_side_currency_trade_amount: 買進最大金額上限 (config 設定)
-        # min_order_volume: 買進最小成交量。需先把手續費加上去，避免賣出時的吃單量低於最小成交量限制
-        # 例：MAX 交易所的 ETH 最低交易量為 0.05，binance 手續費為 0.1%
-        # 若在 Binance 買進 0.05，實際上只買到 0.04995，未達 MAX 的最低交易量)
-        if 'forward' == direction:
-            max_buy_side_currency_trade_amount = self.max_first_currency_trade_amount
-            min_order_volume = self.min_bridge_currency_trade_amount / (1 - self.primary_exchange_adapter.taker_fee_rate)
-        elif 'reverse' == direction:
-            max_buy_side_currency_trade_amount = self.get_max_second_currency_trade_amount()
-            min_order_volume = self.min_bridge_currency_trade_amount / (1 - self.secondary_exchange_adapter.taker_fee_rate)
-        else:
-            raise ValueError('direction must be forward or reverse')
-
-        # 買進金額
-        valid_buy_side_currency_amount = min(max_buy_side_currency_trade_amount, buy_side_currency_amount)
-        # 買進金額換算可買的貨幣量
-        buy_side_currency_ability_volume = valid_buy_side_currency_amount / buy_side_lowest_ask_price
-        # 掛單上的量
-        buy_side_valid_volume = min(buy_side_currency_ability_volume, buy_side_lowest_ask_volume)
-        # 實際可吃單的量
-        valid_take_volume = min(buy_side_valid_volume, sell_side_highest_bid_volume, sell_side_currency_amount)
-        # 取到小數點第 6 位
-        rounded_valid_take_volume = round(valid_take_volume, 6)
-
-        # 實際要交易的量
-        if rounded_valid_take_volume < min_order_volume:
-            # 未達最小交易量設定
-            return 0
-        else:
-            return rounded_valid_take_volume
-
     def get_max_second_currency_trade_amount(self):
         return self.max_first_currency_trade_amount / self.real_rate
 
