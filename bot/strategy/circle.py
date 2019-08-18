@@ -4,6 +4,7 @@ from bot.helpers.trader import Trader
 from bot.helpers.trader import TradeSkippedException
 from bot.helpers.thinker import Thinker
 from bot.helpers.slack import Slack
+from bot.helpers.loggers import Loggers
 import time
 import logging
 import matplotlib.pyplot as plt
@@ -12,20 +13,21 @@ import os
 from pprint import pprint
 
 
-logging.basicConfig(
-    filename='logs/error.log',
-    datefmt='%Y-%m-%d %H:%M:%S',
-)
+ROOT_DIR = os.path.realpath('{}/../../../'.format(os.path.abspath(__file__)))
 
 
-def plot():
-    names = ['time', 'forward', 'reverse']
-    data = pandas.read_csv('logs/ratio-TWD-ETH-USDT-max-binance.log', header=None, names=names)
-    plt.plot(data.time, data.forward)
-    plt.plot(data.time, data.reverse)
-    plt.axhline(y=0.995, color='r', linestyle='-')
-    plt.axhline(y=1.005, color='r', linestyle='-')
-    plt.show()
+def set_error_logger():
+    logger = logging.getLogger('error')
+    logger.setLevel(logging.ERROR)
+    file_handler = logging.FileHandler("logs/error.log")
+    file_handler.setLevel(logging.ERROR)
+    formatter = logging.Formatter(fmt="[%(asctime)s] %(filename)s[line:%(lineno)d]%(levelname)s - %(message)s",
+                                  datefmt="%Y-%m-%d %H:%M:%S")
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+
+set_error_logger()
 
 
 def check():
@@ -50,27 +52,12 @@ def check():
         'mode': 'test_trade',
     }
     try:
-        run_one(config)
+        #run_one(config)
+        trader = Trader(config)
+        amounts = trader.get_currencies_amounts([curA, curB, curC])
+        pprint(amounts)
     except Exception as e:
         print(e)
-    #trader = Trader(config)
-    #amounts= trader.get_currencies_amounts([curA, curB, curC])
-    #log_balance(exchange, amounts=amounts)
-
-    #print(trader.get_curB_amount())
-    #print("\n".join(info))
-    #print(trader.exchange_adapter.markets['ETH/USDT'])
-    #trader.exchange_adapter.create_market_sell_order('ETH/USDT', 0.05, {'type': 'market'})
-    #trader.exec_forward_trade(0.05)
-    #trader.exec_reverse_trade(0.05)
-    #info = trader.get_balance_info()
-    #print("\n".join(info))
-    #trader.sell_curB_from_exchange(0.1)
-    #info = trader.get_balance_info()
-    #print("\n".join(info))
-    #trader.sell_curB(0.05)
-    #print(trader.fetch_primary_orders())
-    #print(trader.fetch_secondary_orders()[-1])
 
 
 def explore():
@@ -109,7 +96,7 @@ def explore():
                     run_one(config)
                 except Exception as e:
                     print(e)
-                    logging.exception(e)
+                    logging.getLogger('error').exception(e)
                 time.sleep(5)
         #time.sleep(10)
         print('---------------------------------------------------------------------')
@@ -153,7 +140,7 @@ def run():
                     run_one(config)
                 except Exception as e:
                     print(e)
-                    logging.exception(e)
+                    logging.getLogger('error').exception(e)
                 time.sleep(0.5)
         #time.sleep(10)
         print('---------------------------------------------------------------------')
@@ -215,12 +202,9 @@ def run_one(config):
     reverse_ratio = thinker.get_op_ratio(highest_bid_price_BA, lowest_ask_price_BC, lowest_ask_price_CA)
     print('Forward ratio: {0:.8f}'.format(forward_ratio))
     print('Reverse ratio: {0:.8f}'.format(reverse_ratio))
-    ratio_log = '{},{},{}'.format(int(time.time()), forward_ratio, reverse_ratio)
 
-    log_name_suffix = '{}-{}-{}'.format(curA, curB, curC)
-
-    # TODO: 分日期
-    #write_log('ratio/{}/{}'.format(exchange, log_name_suffix), ratio_log)
+    combination = '{}-{}-{}'.format(curA, curB, curC)
+    #log_ratio(exchange, combination, forward_ratio, reverse_ratio)
 
     mode = config['mode']
 
@@ -275,7 +259,7 @@ def run_one(config):
                 method = getattr(trader, trade_method)
                 method(symbol_BA, symbol_BC, symbol_CA, take_volume, price_BA, price_BC, price_CA)
             except TradeSkippedException as e:
-                logging.exception(e)
+                logging.getLogger('error').exception(e)
             # 取得最新結餘資訊
             time.sleep(2)
             amounts_after = trader.get_currencies_amounts([curA, curB, curC])
@@ -289,7 +273,7 @@ def run_one(config):
     forward_opportunity = thinker.check_forward_opportunity(lowest_ask_price_BA, highest_bid_price_BC, highest_bid_price_CA)
     if forward_opportunity:
         volume = min(lowest_ask_volume_BA, highest_bid_volume_BC)
-        log_opportunity(exchange, log_name_suffix, 'forward', volume, curB, forward_ratio)
+        log_opportunity(exchange, combination, 'forward', volume, curB, forward_ratio)
         if 'explore' != mode:
             exec_trade('forward')
 
@@ -297,16 +281,33 @@ def run_one(config):
     reverse_opportunity = thinker.check_reverse_opportunity(highest_bid_price_BA, lowest_ask_price_BC, lowest_ask_price_CA)
     if reverse_opportunity:
         volume = min(highest_bid_volume_BA, lowest_ask_volume_BC)
-        log_opportunity(exchange, log_name_suffix, 'reverse', volume, curB, reverse_ratio)
+        log_opportunity(exchange, combination, 'reverse', volume, curB, reverse_ratio)
         if 'explore' != mode:
             exec_trade('reverse')
 
 
-def log_opportunity(exchange, log_name_suffix, direction, volume, cur, ratio):
-    msg = '[{0}] {1} OPPORTUNITY: possible volume: {2:.8f}{3}, ratio: {4:.8f}'.format(
-        time.strftime('%c'), direction.upper(), volume, cur, ratio)
-    print(msg)
-    write_log('opportunity/{}/{}'.format(exchange, log_name_suffix), msg)
+def log_ratio(exchange, combination, forward_ratio, reverse_ratio):
+    msg = '{},{},{}'.format(combination, forward_ratio, reverse_ratio)
+
+    log_name = 'ratio'
+    log_dir = '{}/logs'.format(ROOT_DIR)
+    log_path = '{}/{}/{}/{}.log'.format(log_dir, log_name, exchange, log_name)
+
+    logger = Loggers().get_rotate_info_logger(log_name, log_path)
+    logger.log(msg)
+
+
+def log_opportunity(exchange, combination, direction, volume, cur, ratio):
+    msg = '{0} OPPORTUNITY {1}: possible volume: {2:.8f}{3}, ratio: {4:.8f}'.format(
+        direction.upper(), combination, volume, cur, ratio
+    )
+
+    log_name = 'opportunity'
+    log_dir = '{}/logs'.format(ROOT_DIR)
+    log_path = '{}/{}/{}/{}.log'.format(log_dir, log_name, exchange, log_name)
+
+    logger = Loggers().get_rotate_info_logger(log_name, log_path)
+    logger.log(msg)
 
 
 def log_trade(formatted_time, direction, curA, curB, curC, take_volume, ratio):
@@ -350,3 +351,13 @@ def write_log(log_name, msg):
     with open(log_file, 'a') as the_file:
         the_file.write(msg)
         the_file.write('\n')
+
+
+def plot():
+    names = ['time', 'forward', 'reverse']
+    data = pandas.read_csv('logs/ratio-TWD-ETH-USDT-max-binance.log', header=None, names=names)
+    plt.plot(data.time, data.forward)
+    plt.plot(data.time, data.reverse)
+    plt.axhline(y=0.995, color='r', linestyle='-')
+    plt.axhline(y=1.005, color='r', linestyle='-')
+    plt.show()

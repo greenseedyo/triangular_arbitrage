@@ -42,10 +42,12 @@ def check():
         'mode': 'test_trade',
     }
     try:
-        run_one(config)
+        #run_one(config)
+        trader = swing_helpers.Trader(config)
+        amount = trader.get_bridge_currency_amount_in_primary_exchange()
+        pprint(amount)
     except Exception as e:
         print(e)
-    trader = swing_helpers.Trader(config)
     #print(trader.get_bridge_currency_amount_in_secondary_exchange())
     #print(trader.get_real_rate())
     #info = trader.get_balance_info()
