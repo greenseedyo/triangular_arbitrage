@@ -271,6 +271,7 @@ class Thinker:
 
     def get_valid_volume(self, direction, buy_side_currency_amount, buy_side_lowest_ask_price, buy_side_lowest_ask_volume,
                          sell_side_currency_amount, sell_side_highest_bid_volume):
+        print('input: ', locals())
         # max_buy_side_currency_trade_amount: 買進最大金額上限 (config 設定)
         # min_order_volume: 買進最小成交量。需先把手續費加上去，避免賣出時的吃單量低於最小成交量限制
         # 例：MAX 交易所的 ETH 最低交易量為 0.05，binance 手續費為 0.1%
@@ -294,6 +295,14 @@ class Thinker:
         valid_take_volume = min(buy_side_valid_volume, sell_side_highest_bid_volume, sell_side_currency_amount)
         # 取到小數點第 6 位
         rounded_valid_take_volume = round(valid_take_volume, 6)
+
+        print('max_buy_side_currency_trade_amount: {}'.format(max_buy_side_currency_trade_amount))
+        print('min_order_volume: {}'.format(min_order_volume))
+        print('valid_buy_side_currency_amount: {}'.format(valid_buy_side_currency_amount))
+        print('buy_side_currency_ability_volume: {}'.format(buy_side_currency_ability_volume))
+        print('buy_side_valid_volume: {}'.format(buy_side_valid_volume))
+        print('valid_take_volume: {}'.format(valid_take_volume))
+        print('rounded_valid_take_volume: {}'.format(rounded_valid_take_volume))
 
         # 實際要交易的量
         if rounded_valid_take_volume < min_order_volume:

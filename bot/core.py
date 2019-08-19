@@ -27,7 +27,7 @@ def check():
     bridge_currency = 'ETH'
     second_currency = 'USDT'
     primary_exchange = 'max'
-    secondary_exchange = 'max'
+    secondary_exchange = 'binance'
     config = {
         'real_rate_handler': 'get_real_rate_in_primary_exchange',
         'bridge_currency': bridge_currency,
@@ -35,17 +35,19 @@ def check():
         'second_currency': second_currency,
         'max_first_currency_trade_amount': 1000,
         'min_bridge_currency_trade_amount': 0.05,
-        'threshold_forward': 0.995,  # 順向
-        'threshold_reverse': 1.005,  # 逆向
+        'threshold_forward': 0.997,  # 順向
+        'threshold_reverse': 1.003,  # 逆向
         'primary_exchange': primary_exchange,
         'secondary_exchange': secondary_exchange,
         'mode': 'test_trade',
     }
     try:
-        #run_one(config)
-        trader = swing_helpers.Trader(config)
-        amount = trader.get_bridge_currency_amount_in_primary_exchange()
-        pprint(amount)
+        run_one(config)
+        # trader = swing_helpers.Trader(config)
+        # amount = trader.get_bridge_currency_amount_in_primary_exchange()
+        # pprint(amount)
+        # amount = trader.get_bridge_currency_amount_in_secondary_exchange()
+        # pprint(amount)
     except Exception as e:
         print(e)
     #print(trader.get_bridge_currency_amount_in_secondary_exchange())
@@ -190,12 +192,12 @@ def run_one(config):
         if 'forward' == direction:
             buy_side_currency_amount = trader.get_first_currency_amount()
             sell_side_currency_amount = trader.get_bridge_currency_amount_in_secondary_exchange()
-            if 'production' == mode:
+            if 'production' == mode or 'test_real_trade' == mode:
                 trade_method = 'exec_forward_trade'
         elif 'reverse' == direction:
             buy_side_currency_amount = trader.get_second_currency_amount()
             sell_side_currency_amount = trader.get_bridge_currency_amount_in_primary_exchange()
-            if 'production' == mode:
+            if 'production' == mode or 'test_real_trade' == mode:
                 trade_method = 'exec_reverse_trade'
         else:
             raise ValueError('direction must be forward or reverse')
@@ -207,6 +209,7 @@ def run_one(config):
                                                      buy_side_lowest_ask_volume=buy_side_lowest_ask_volume,
                                                      sell_side_currency_amount=sell_side_currency_amount,
                                                      sell_side_highest_bid_volume=sell_side_highest_bid_volume)
+        print('take volume: {}'.format(take_volume))
         if take_volume > 0:
             log_trade(time.strftime('%c'), direction, first_currency, bridge_currency,
                       second_currency, take_volume, forward_ratio)
@@ -235,8 +238,9 @@ def run_one(config):
         print(msg)
         write_log('opportunity{}'.format(log_name_suffix), msg)
 
-    if 'test_trade' == mode:
-        exec_trade('forward', primary_order_book, secondary_order_book)
+    if 'test_trade' == mode or 'test_real_trade' == mode:
+        #exec_trade('forward', primary_order_book, secondary_order_book)
+        exec_trade('reverse', secondary_order_book, primary_order_book)
         return
 
     # 檢查是否可順向操作 (台幣買入加密貨幣、外幣賣出加密貨幣)

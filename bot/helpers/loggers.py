@@ -7,8 +7,17 @@ from logging import handlers
 
 
 class Loggers:
+    __single = None
+    loggers = None
+
+    def __new__(cls):
+        if not Loggers.__single:
+            Loggers.__single = object.__new__(cls)
+        return Loggers.__single
+
     def __init__(self):
-        self.loggers = {}
+        if self.loggers is None:
+            self.loggers = {}
 
     def get(self, log_name):
         if log_name in self.loggers:
@@ -24,6 +33,7 @@ class Loggers:
         logger = self.get(log_name)
         if logger is None:
             logger = RotateInfoLogger(log_name, exchange)
+            self.loggers[log_name] = logger
         return logger
 
 

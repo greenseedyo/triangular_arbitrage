@@ -21,7 +21,7 @@ def set_error_logger():
     logger.setLevel(logging.ERROR)
     file_handler = logging.FileHandler("logs/error.log")
     file_handler.setLevel(logging.ERROR)
-    formatter = logging.Formatter(fmt="[%(asctime)s] %(filename)s[line:%(lineno)d]%(levelname)s - %(message)s",
+    formatter = logging.Formatter(fmt="[%(asctime)s] %(filename)s[line:%(lineno)d]%(levelname)s - %(message)s\n",
                                   datefmt="%Y-%m-%d %H:%M:%S")
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
@@ -49,13 +49,13 @@ def check():
         'threshold_forward': 0.996,  # 順向
         'threshold_reverse': 1.004,  # 逆向
         'exchange': exchange,
-        'mode': 'test_trade',
+        'mode': 'test_real_trade',
     }
     try:
-        #run_one(config)
-        trader = Trader(config)
-        amounts = trader.get_currencies_amounts([curA, curB, curC])
-        pprint(amounts)
+        run_one(config)
+        #trader = Trader(config)
+        #amounts = trader.get_currencies_amounts([curA, curB, curC])
+        #pprint(amounts)
     except Exception as e:
         print(e)
 
@@ -227,7 +227,7 @@ def run_one(config):
                                                            bid_volume_BC=highest_bid_volume_BC,
                                                            bid_volume_CA=highest_bid_volume_CA)
             print('take volume: {}{}'.format(take_volume, curB))
-            if 'production' == mode:
+            if 'production' == mode or 'test_real_trade' == mode:
                 trade_method = 'exec_forward_trade'
         elif 'reverse' == direction:
             ratio = reverse_ratio
