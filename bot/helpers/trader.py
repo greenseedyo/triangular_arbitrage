@@ -11,9 +11,14 @@ import bot.helpers.utils as utils
 
 def get_exchange_adapter(exchange_name):
     exchange_adapter_module_name = 'bot.adapters.{}'.format(exchange_name)
-    __import__(exchange_adapter_module_name)
-    module = sys.modules[exchange_adapter_module_name]
-    adapter_name = '{}Adapter'.format(exchange_name.capitalize())
+    try:
+        __import__(exchange_adapter_module_name)
+        module = sys.modules[exchange_adapter_module_name]
+        adapter_name = '{}Adapter'.format(exchange_name.capitalize())
+    except ImportError:
+        import bot.adapters.general
+        module = sys.modules['bot.adapters.general']
+        adapter_name = 'GeneralAdapter'
     adapter = getattr(module, adapter_name)()
     return adapter
 
@@ -35,7 +40,7 @@ class Trader:
                 break
             except ccxt.ExchangeError as e:
                 if str(e).find('No market symbol'):
-                    break
+                    raise NoMarketSymbolException
                 else:
                     print(str(e))
                     break
@@ -134,7 +139,7 @@ class Trader:
                 response = exchange_adapter.create_limit_sell_order(pair_symbol, amount, acceptable_price)
         except ccxt.InvalidOrder as e:
             msg = 'TRADE SKIPPED - invalid order: {0}. pair: {1}, side: {2}, amount: {3:.8f}'.format(str(e), pair_symbol, side, amount)
-            raise TradeSkippedException(msg)
+            raise InsufficientFundsException(msg)
         except ccxt.InsufficientFunds:
             msg = 'TRADE SKIPPED - insufficient balance. pair: {0}, side: {1}, amount: {2:.8f}'.format(pair_symbol, side, amount)
             raise InsufficientFundsException(msg)
@@ -155,7 +160,7 @@ class Trader:
 
             if 'closed' != order['status']:
                 current_timestamp = time.time()
-                if (current_timestamp - tmp_timestamp > 1800):
+                if (current_timestamp - tmp_timestamp) > 1800:
                     Slack.send_message('The trade is still uncompleted...')
                     tmp_timestamp = current_timestamp
                 time.sleep(0.5)
@@ -182,4 +187,8 @@ class TradeSkippedException(Exception):
 
 
 class InsufficientFundsException(TradeSkippedException):
+    pass
+
+
+class NoMarketSymbolException(Exception):
     pass

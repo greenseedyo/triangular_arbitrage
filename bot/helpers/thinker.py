@@ -6,9 +6,14 @@ import bot.helpers.utils as utils
 
 def get_exchange_adapter(exchange_name):
     exchange_adapter_module_name = 'bot.adapters.{}'.format(exchange_name)
-    __import__(exchange_adapter_module_name)
-    module = sys.modules[exchange_adapter_module_name]
-    adapter_name = '{}Adapter'.format(exchange_name.capitalize())
+    try:
+        __import__(exchange_adapter_module_name)
+        module = sys.modules[exchange_adapter_module_name]
+        adapter_name = '{}Adapter'.format(exchange_name.capitalize())
+    except ImportError:
+        import bot.adapters.general
+        module = sys.modules['bot.adapters.general']
+        adapter_name = 'GeneralAdapter'
     adapter = getattr(module, adapter_name)()
     return adapter
 

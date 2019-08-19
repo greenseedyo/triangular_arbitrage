@@ -120,7 +120,7 @@ class MaxAdapter(Exchange):
             result[code] = account
         return self.parse_balance(result)
 
-    def create_order(self, symbol, type, side, amount, price=None, params=None):
+    def create_order(self, symbol, trade_type, side, amount, price=None, params=None):
         if params is None:
             params = {}
         if price is None:
@@ -134,7 +134,7 @@ class MaxAdapter(Exchange):
         response = None
         amount = self.amount_to_precision(symbol, amount)
         try:
-            response = self.client.set_private_create_order(market_id, side, amount, price, stop_price, type)
+            response = self.client.set_private_create_order(market_id, side, amount, price, stop_price, trade_type)
         except HTTPError as e:
             if str(e) == 'HTTP Error 400: Bad Request':
                 raise ccxt.InvalidOrder('not enough trade amount or insufficient fund')
@@ -162,7 +162,7 @@ class MaxAdapter(Exchange):
                     market = entry
                     break
         symbol = market['symbol']
-        type = self.safe_string(order, 'ord_type')
+        ord_type = self.safe_string(order, 'ord_type')
         side = self.safe_string(order, 'side')
         average = self.safe_float(order, 'avg_price')
         price = self.safe_float(order, 'price')
@@ -181,7 +181,7 @@ class MaxAdapter(Exchange):
             'datetime': self.iso8601(timestamp),
             'lastTradeTimestamp': None,
             'symbol': symbol,
-            'type': type,
+            'type': ord_type,
             'side': side,
             'price': price,
             'amount': amount,

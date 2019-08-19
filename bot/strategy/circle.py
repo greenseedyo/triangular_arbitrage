@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from bot.helpers.trader import Trader
-from bot.helpers.trader import TradeSkippedException
+from bot.helpers.trader import TradeSkippedException, NoMarketSymbolException
 from bot.helpers.thinker import Thinker
 from bot.helpers.slack import Slack
 from bot.helpers.loggers import Loggers
@@ -61,10 +61,13 @@ def check():
 
 
 def explore():
-    curB_candidates = ['BTC', 'ETH', 'XRP', 'QASH', 'HOT', 'QTUM', 'STACS', 'DASH']
-    curC_candidates = ['BTC', 'ETH']
+    # 交易所設定
+    exchange = 'crex24'
 
-    curA = 'USD'
+    curB_candidates = ['NSD', 'ZEC', 'XRP', 'SBE', 'DOGE', 'MAR', 'LTC', 'XMR', 'WAVES', 'JDC', 'TRX']
+    curC_candidates = ['ETH']
+
+    curA = 'BTC'
 
     # 交易金額上限設定 (測試時可設定較少金額)
     max_curA_trade_amount = 1000
@@ -73,13 +76,14 @@ def explore():
     threshold_forward = 0.9965  # 順向
     threshold_reverse = 1.0035  # 逆向
 
-    # 交易所設定
-    exchange = 'liquid'
-
+    skip_check = {}
     while 1:
         for curB in curB_candidates:
             for curC in curC_candidates:
                 if curB == curC or curA == curC:
+                    continue
+                key = '{}-{}-{}'.format(curA, curB, curC)
+                if key in skip_check:
                     continue
 
                 config = {
@@ -94,6 +98,8 @@ def explore():
                 }
                 try:
                     run_one(config)
+                except NoMarketSymbolException:
+                    skip_check[key] = True
                 except Exception as e:
                     print(e)
                     logging.getLogger('error').exception(e)
