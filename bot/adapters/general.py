@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 
 import ccxt
-from secrets import LIQUID_KEY, LIQUID_SECRET
 
 
 class GeneralAdapter:
-    def __init__(self, KEY=None, SECRET=None):
-        client = ccxt.liquid({
-            'apiKey': KEY,
-            'secret': SECRET,
+    def __init__(self, exchange_name, key=None, secret=None):
+        exchange = getattr(ccxt, exchange_name)
+        client = exchange({
+            'apiKey': key,
+            'secret': secret,
         })
         self.client = client
 

@@ -5,28 +5,13 @@ import time
 import ccxt
 import urllib
 from urllib import error
-from bot.helpers.slack import Slack
 import bot.helpers.utils as utils
-
-
-def get_exchange_adapter(exchange_name):
-    exchange_adapter_module_name = 'bot.adapters.{}'.format(exchange_name)
-    try:
-        __import__(exchange_adapter_module_name)
-        module = sys.modules[exchange_adapter_module_name]
-        adapter_name = '{}Adapter'.format(exchange_name.capitalize())
-    except ImportError:
-        import bot.adapters.general
-        module = sys.modules['bot.adapters.general']
-        adapter_name = 'GeneralAdapter'
-    adapter = getattr(module, adapter_name)()
-    return adapter
 
 
 class Trader:
     def __init__(self, config):
         self.exchange = config['exchange']
-        self.exchange_adapter = get_exchange_adapter(config['exchange'])
+        self.exchange_adapter = utils.get_exchange_adapter(config['exchange'])
 
     def get_min_trade_volume_limit(self, symbol):
         return self.exchange_adapter.get_min_trade_volume_limit(symbol)
@@ -39,7 +24,7 @@ class Trader:
                 order_book = adapter.fetch_order_book(pair_symbol, limit=limit)
                 break
             except ccxt.ExchangeError as e:
-                if str(e).find('No market symbol'):
+                if str(e).find('No market symbol') != -1:
                     raise NoMarketSymbolException
                 else:
                     print(str(e))
@@ -89,7 +74,7 @@ class Trader:
 
     def exec_forward_trade(self, symbol_BA, symbol_BC, symbol_CA, volume_BA,
                            price_BA, price_BC, price_CA):
-        Slack.send_message('start FORWARD trade, detected prices:\n{}: {}\n{}: {}\n{}: {}'.format(
+        utils.log_to_slack('start FORWARD trade, detected prices:\n{}: {}\n{}: {}\n{}: {}'.format(
             symbol_BA, price_BA, symbol_BC, price_BC, symbol_CA, price_CA
         ))
 
@@ -104,7 +89,7 @@ class Trader:
 
     def exec_reverse_trade(self, symbol_BA, symbol_BC, symbol_CA, volume_CA,
                            price_BA, price_BC, price_CA):
-        Slack.send_message('start REVERSE trade, detected prices:\n{}: {}\n{}: {}\n{}: {}'.format(
+        utils.log_to_slack('start REVERSE trade, detected prices:\n{}: {}\n{}: {}\n{}: {}'.format(
             symbol_BA, price_BA, symbol_BC, price_BC, symbol_CA, price_CA
         ))
 
@@ -119,7 +104,7 @@ class Trader:
                 curB_amount = self.trade(symbol_BC, 'buy', volume_BC, price_BC)
                 break
             except InsufficientFundsException:
-                Slack.send_message('Insufficient funds.\nDecrease volume by {}'.format(decrease_step))
+                utils.log_to_slack('Insufficient funds.\nDecrease volume by {}'.format(decrease_step))
                 volume_BC = volume_BC - decrease_step
         time.sleep(1)
 
@@ -127,7 +112,7 @@ class Trader:
         return curA_amount
 
     def trade(self, pair_symbol, side, amount, price):
-        Slack.send_message('Trade start: {0}\n{1} volume: {2:.8f}'.format(pair_symbol, side, amount))
+        utils.log_to_slack('Trade start: {0}\n{1} volume: {2:.8f}'.format(pair_symbol, side, amount))
         exchange_adapter = self.exchange_adapter
         response = {}
         try:
@@ -161,7 +146,7 @@ class Trader:
             if 'closed' != order['status']:
                 current_timestamp = time.time()
                 if (current_timestamp - tmp_timestamp) > 1800:
-                    Slack.send_message('The trade is still uncompleted...')
+                    utils.log_to_slack('The trade is still uncompleted...')
                     tmp_timestamp = current_timestamp
                 time.sleep(0.5)
                 continue
@@ -178,7 +163,7 @@ class Trader:
             else:
                 fee = order['cost'] * exchange_adapter.taker_fee_rate
                 got_amount = order['cost'] - fee
-            Slack.send_message('Trade complete: {0}\ngot amount: {1:.8f}'.format(pair_symbol, got_amount))
+            utils.log_to_slack('Trade complete: {0}\ngot amount: {1:.8f}'.format(pair_symbol, got_amount))
             return got_amount
 
 

@@ -3,8 +3,8 @@
 from bot.helpers.trader import Trader
 from bot.helpers.trader import TradeSkippedException, NoMarketSymbolException
 from bot.helpers.thinker import Thinker
-from bot.helpers.slack import Slack
 from bot.helpers.loggers import Loggers
+import bot.helpers.utils as utils
 import time
 import logging
 import matplotlib.pyplot as plt
@@ -49,7 +49,7 @@ def check():
         'threshold_forward': 0.996,  # 順向
         'threshold_reverse': 1.004,  # 逆向
         'exchange': exchange,
-        'mode': 'test_real_trade',
+        'mode': 'test_trade',
     }
     try:
         run_one(config)
@@ -64,10 +64,10 @@ def explore():
     # 交易所設定
     exchange = 'crex24'
 
-    curB_candidates = ['NSD', 'ZEC', 'XRP', 'SBE', 'DOGE', 'MAR', 'LTC', 'XMR', 'WAVES', 'JDC', 'TRX']
-    curC_candidates = ['ETH']
-
-    curA = 'BTC'
+    curA_candidates = ['USDT', 'BTC', 'ETH', 'USD', 'USDT']
+    curB_candidates = ['ETH', 'NSD', 'ZEC', 'XRP', 'SBE', 'DOGE', 'MAR', 'LTC', 'XMR', 'WAVES', 'JDC', 'TRX', 'BCH', 'TELOS', 'CGEN',
+                       'POP', 'VLU', 'OK', 'JDC', 'ILC']
+    curC_candidates = ['USDT', 'BTC', 'ETH']
 
     # 交易金額上限設定 (測試時可設定較少金額)
     max_curA_trade_amount = 1000
@@ -78,33 +78,34 @@ def explore():
 
     skip_check = {}
     while 1:
-        for curB in curB_candidates:
-            for curC in curC_candidates:
-                if curB == curC or curA == curC:
-                    continue
-                key = '{}-{}-{}'.format(curA, curB, curC)
-                if key in skip_check:
-                    continue
+        for curA in curA_candidates:
+            for curB in curB_candidates:
+                for curC in curC_candidates:
+                    if curA == curB or curB == curC or curA == curC:
+                        continue
+                    key = '{}-{}-{}'.format(curA, curB, curC)
+                    if key in skip_check:
+                        continue
 
-                config = {
-                    'curA': curA,
-                    'curB': curB,
-                    'curC': curC,
-                    'threshold_forward': threshold_forward,  # 順向
-                    'threshold_reverse': threshold_reverse,  # 逆向
-                    'max_curA_trade_amount': max_curA_trade_amount,
-                    'exchange': exchange,
-                    'mode': 'production',
-                }
-                try:
-                    run_one(config)
-                except NoMarketSymbolException:
-                    skip_check[key] = True
-                except Exception as e:
-                    print(e)
-                    logging.getLogger('error').exception(e)
-                time.sleep(5)
-        #time.sleep(10)
+                    config = {
+                        'curA': curA,
+                        'curB': curB,
+                        'curC': curC,
+                        'threshold_forward': threshold_forward,  # 順向
+                        'threshold_reverse': threshold_reverse,  # 逆向
+                        'max_curA_trade_amount': max_curA_trade_amount,
+                        'exchange': exchange,
+                        'mode': 'explore',
+                    }
+                    try:
+                        run_one(config)
+                    except NoMarketSymbolException:
+                        skip_check[key] = True
+                    except Exception as e:
+                        print(e)
+                        logging.getLogger('error').exception(e)
+                    #time.sleep(5)
+            #time.sleep(10)
         print('---------------------------------------------------------------------')
 
 
@@ -326,7 +327,7 @@ def log_trade(formatted_time, direction, curA, curB, curC, take_volume, ratio):
     trade_msg = '[{0}]\n{1}: {2}-{3}-{4}\nVolume: {5:.8f}{6}\nRatio: {7:.8f}'.format(formatted_time, direction.upper(), curA, curB,
                                                     curC, take_volume, start_cur, ratio)
     print(trade_msg)
-    Slack.send_message(trade_msg)
+    utils.log_to_slack(trade_msg)
     write_log('trade', trade_msg)
 
 
@@ -345,7 +346,7 @@ def log_balance(exchange, amounts, amounts_before=None):
     msg = "\n".join(info)
     print('[NEW BALANCE INFO]')
     print(msg)
-    Slack.send_message(msg)
+    utils.log_to_slack(msg)
     write_log('balance', msg)
 
 

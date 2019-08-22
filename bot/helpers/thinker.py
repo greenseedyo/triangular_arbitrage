@@ -4,24 +4,10 @@ import sys
 import bot.helpers.utils as utils
 
 
-def get_exchange_adapter(exchange_name):
-    exchange_adapter_module_name = 'bot.adapters.{}'.format(exchange_name)
-    try:
-        __import__(exchange_adapter_module_name)
-        module = sys.modules[exchange_adapter_module_name]
-        adapter_name = '{}Adapter'.format(exchange_name.capitalize())
-    except ImportError:
-        import bot.adapters.general
-        module = sys.modules['bot.adapters.general']
-        adapter_name = 'GeneralAdapter'
-    adapter = getattr(module, adapter_name)()
-    return adapter
-
-
 class Thinker:
     def __init__(self, config):
         self.exchange = config['exchange']
-        self.exchange_adapter = get_exchange_adapter(config['exchange'])
+        self.exchange_adapter = utils.get_exchange_adapter(config['exchange'])
         self.threshold_forward = config['threshold_forward']
         self.threshold_reverse = config['threshold_reverse']
 
@@ -75,7 +61,7 @@ class Thinker:
         # 換算需要買多少 curB 才夠
         needed_curB_amount = (needed_curC_amount / bid_price_BC) / (1 - self.exchange_adapter.taker_fee_rate)
         # 換算需要多少 curA 才夠
-        needed_curA_amount = (valid_volume_BA * price_BA) / (1 - self.exchange_adapter.taker_fee_rate)
+        needed_curA_amount = (needed_curB_amount * price_BA) / (1 - self.exchange_adapter.taker_fee_rate)
 
         # 取到小數點第 8 位
         floored_needed_curA_amount = utils.get_floored_amount(needed_curA_amount)
@@ -130,7 +116,7 @@ class Thinker:
         # 換算需要買多少 curC 才夠
         needed_curC_amount = (needed_curB_amount * ask_price_BC) / (1 - self.exchange_adapter.taker_fee_rate)
         # 換算需要多少 curA 才夠
-        needed_curA_amount = (valid_volume_CA * price_CA) / (1 - self.exchange_adapter.taker_fee_rate)
+        needed_curA_amount = (needed_curC_amount * price_CA) / (1 - self.exchange_adapter.taker_fee_rate)
 
 
         # 取到小數點第 8 位
