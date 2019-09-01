@@ -143,7 +143,7 @@ class Trader:
                     time.sleep(0.5)
                     continue
 
-            if 'closed' != order['status']:
+            if 'closed' != order['status'] and 'canceled' != order['status']:
                 current_timestamp = time.time()
                 if (current_timestamp - tmp_timestamp) > 1800:
                     utils.log_to_slack('The trade is still uncompleted...')

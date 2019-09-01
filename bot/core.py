@@ -7,6 +7,7 @@ import logging
 import matplotlib.pyplot as plt
 import pandas
 from pprint import pprint
+import bot.helpers.utils as utils
 
 
 logging.basicConfig(filename='logs/error.log')
@@ -14,7 +15,7 @@ logging.basicConfig(filename='logs/error.log')
 
 def plot():
     names = ['time', 'forward', 'reverse']
-    data = pandas.read_csv('logs/ratio-TWD-ETH-USDT-max-binance.log', header=None, names=names)
+    data = pandas.read_csv('logs/ratio-TWD-USDT-USD-max-bitfinex.log', header=None, names=names)
     plt.plot(data.time, data.forward)
     plt.plot(data.time, data.reverse)
     plt.axhline(y=0.9975, color='r', linestyle='-')
@@ -66,13 +67,14 @@ def check():
     #trader.sell_bridge_currency_from_secondary_exchange(0.05)
     #print(trader.fetch_primary_orders())
     #print(trader.fetch_secondary_orders()[-1])
+    pprint('done.')
 
 
 def explore():
     # 幣種設定
     first_currency = 'TWD'
-    bridge_currency = 'EOS'
-    second_currency = 'ETH'
+    bridge_currency = 'USDT'
+    second_currency = 'USD'
 
     # 可執行交易的 (操作匯率 / 銀行匯率) 閥值設定
     threshold_forward = 0.9975  # 順向
@@ -80,12 +82,12 @@ def explore():
 
     # 交易所設定
     primary_exchange = 'max'
-    secondary_exchange = 'max'
+    secondary_exchange = 'bitfinex'
 
     while 1:
         # 取得銀行匯率 (時間, 現金買入, 現金賣出, 即期買入, 即期賣出)
         config = {
-            'real_rate_handler': 'get_real_rate_in_primary_exchange',
+            'real_rate_handler': 'get_usdtwd_by_twder',
             'bridge_currency': bridge_currency,
             'first_currency': first_currency,
             'second_currency': second_currency,
@@ -233,8 +235,8 @@ def run_one(config):
         else:
             raise ValueError('direction must be forward or reverse')
         possible_volume = min(buy_side_lowest_ask_volume, sell_side_highest_bid_volume)
-        msg = '[{}] FORWARD OPPORTUNITY: {} possible volume: {}, ratio: {}'.format(
-            time.strftime('%c'), bridge_currency, possible_volume, ratio)
+        msg = '[{}] {} OPPORTUNITY: {} possible volume: {}, ratio: {}'.format(
+            time.strftime('%c'), direction.upper(), bridge_currency, possible_volume, ratio)
         print(msg)
         write_log('opportunity{}'.format(log_name_suffix), msg)
 
@@ -263,6 +265,7 @@ def log_trade(formatted_time, direction, first_currency, bridge_currency, second
                                                     second_currency, take_volume, ratio)
     print(trade_msg)
     write_log('trade', trade_msg)
+    utils.log_to_slack(trade_msg)
 
 
 def log_balance(trader):
@@ -271,6 +274,7 @@ def log_balance(trader):
     print('[NEW BALANCE INFO]')
     print(balance_msg)
     write_log('balance', balance_msg)
+    utils.log_to_slack(balance_msg)
 
 
 def write_log(log_name, msg):
