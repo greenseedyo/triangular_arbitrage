@@ -10,6 +10,7 @@ import logging
 import matplotlib.pyplot as plt
 import pandas
 import os
+import threading
 from pprint import pprint
 
 
@@ -144,11 +145,13 @@ def run():
                     'mode': 'production',
                 }
                 try:
-                    run_one(config)
+                    t = threading.Thread(target=run_one, args=(config,))
+                    t.start()
+                    #run_one(config)
                 except Exception as e:
                     print(e)
                     logging.getLogger('error').exception(e)
-                time.sleep(0.5)
+                time.sleep(1)
         #time.sleep(10)
         print('---------------------------------------------------------------------')
 
@@ -257,6 +260,9 @@ def run_one(config):
                 trade_method = 'exec_reverse_trade'
         else:
             raise ValueError('direction must be forward or reverse')
+
+        if 'test_trade' == mode:
+            take_volume = take_volume if take_volume > 0 else 1
 
         if take_volume > 0:
             amounts_before = trader.get_currencies_amounts([curA, curB, curC])
