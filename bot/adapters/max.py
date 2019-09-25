@@ -60,7 +60,7 @@ class MaxAdapter(Exchange):
         elif 'BCNT' == symbol:
             return 300.0
         else:
-            return 0
+            return None
 
     def fetch_order_book(self, symbol, limit=None, params=None):
         if limit is None:

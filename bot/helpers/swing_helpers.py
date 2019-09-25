@@ -4,6 +4,7 @@ import sys
 import time
 import ccxt
 import twder
+import bot.helpers.utils as utils
 
 
 def get_exchange_adapter(exchange_name):
@@ -236,6 +237,8 @@ class Trader:
 class Thinker:
     def __init__(self, config):
         self.max_first_currency_trade_amount = config['max_first_currency_trade_amount']
+        self.min_first_currency_trade_amount = config['min_first_currency_trade_amount']
+        self.min_secondary_currency_trade_amount = config['min_secondary_currency_trade_amount']
         self.min_bridge_currency_trade_amount = config['min_bridge_currency_trade_amount']
         self.real_rate = config['real_rate']
         self.primary_exchange = config['primary_exchange']
@@ -270,7 +273,7 @@ class Thinker:
         return ratio
 
     def get_valid_volume(self, direction, buy_side_currency_amount, buy_side_lowest_ask_price, buy_side_lowest_ask_volume,
-                         sell_side_currency_amount, sell_side_highest_bid_volume):
+                         sell_side_currency_amount, sell_side_highest_bid_price, sell_side_highest_bid_volume):
         print('input: ', locals())
         # max_buy_side_currency_trade_amount: 買進最大金額上限 (config 設定)
         # min_order_volume: 買進最小成交量。需先把手續費加上去，避免賣出時的吃單量低於最小成交量限制
@@ -279,9 +282,13 @@ class Thinker:
         if 'forward' == direction:
             max_buy_side_currency_trade_amount = self.max_first_currency_trade_amount
             min_order_volume = self.min_bridge_currency_trade_amount / (1 - self.primary_exchange_adapter.taker_fee_rate)
+            min_buy_side_trade_amount = self.min_first_currency_trade_amount
+            min_sell_side_trade_amount = self.min_secondary_currency_trade_amount
         elif 'reverse' == direction:
             max_buy_side_currency_trade_amount = self.get_max_second_currency_trade_amount()
             min_order_volume = self.min_bridge_currency_trade_amount / (1 - self.secondary_exchange_adapter.taker_fee_rate)
+            min_buy_side_trade_amount = self.min_secondary_currency_trade_amount
+            min_sell_side_trade_amount = self.min_first_currency_trade_amount
         else:
             raise ValueError('direction must be forward or reverse')
 
@@ -296,17 +303,33 @@ class Thinker:
         # 取到小數點第 6 位
         rounded_valid_take_volume = round(valid_take_volume, 6)
 
-        print('max_buy_side_currency_trade_amount: {}'.format(max_buy_side_currency_trade_amount))
-        print('min_order_volume: {}'.format(min_order_volume))
-        print('valid_buy_side_currency_amount: {}'.format(valid_buy_side_currency_amount))
-        print('buy_side_currency_ability_volume: {}'.format(buy_side_currency_ability_volume))
-        print('buy_side_valid_volume: {}'.format(buy_side_valid_volume))
-        print('valid_take_volume: {}'.format(valid_take_volume))
-        print('rounded_valid_take_volume: {}'.format(rounded_valid_take_volume))
+        # 實際買進成本
+        buy_side_cost = rounded_valid_take_volume * buy_side_lowest_ask_price
+        # 實際賣出收款
+        sell_side_income = rounded_valid_take_volume * sell_side_highest_bid_price
+
+        msgs = []
+        msgs.append('max_buy_side_currency_trade_amount: {}'.format(max_buy_side_currency_trade_amount))
+        msgs.append('min_order_volume: {}'.format(min_order_volume))
+        msgs.append('min_buy_side_trade_amount: {}'.format(min_buy_side_trade_amount))
+        msgs.append('min_sell_side_trade_amount: {}'.format(min_sell_side_trade_amount))
+        msgs.append('valid_buy_side_currency_amount: {}'.format(valid_buy_side_currency_amount))
+        msgs.append('buy_side_currency_ability_volume: {}'.format(buy_side_currency_ability_volume))
+        msgs.append('buy_side_valid_volume: {}'.format(buy_side_valid_volume))
+        msgs.append('valid_take_volume: {}'.format(valid_take_volume))
+        msgs.append('rounded_valid_take_volume: {}'.format(rounded_valid_take_volume))
+        msgs.append('buy_side_cost: {}'.format(buy_side_cost))
+        msgs.append('sell_side_income: {}'.format(sell_side_income))
+        msg = "\n".join(msgs)
+        print(msg)
+        #utils.log_to_slack(msg)
 
         # 實際要交易的量
         if rounded_valid_take_volume < min_order_volume:
-            # 未達最小交易量設定
+            return 0
+        elif buy_side_cost < min_buy_side_trade_amount:
+            return 0
+        elif sell_side_income < min_sell_side_trade_amount:
             return 0
         else:
             return rounded_valid_take_volume

@@ -117,7 +117,7 @@ def run():
     curA = 'TWD'
 
     # 交易金額上限設定 (測試時可設定較少金額)
-    max_curA_trade_amount = 10000
+    max_curA_trade_amount = 30000
 
     # 可執行交易的 (操作匯率 / 銀行匯率) 閥值設定
     threshold_forward = 0.995  # 順向

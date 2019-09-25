@@ -16,7 +16,11 @@ class BinanceAdapter:
 
     @staticmethod
     def get_min_trade_volume_limit(symbol):
-        return 0
+        symbol = symbol.upper()
+        if 'USDT' == symbol:
+            return 10.1  # 官方寫 10，但實測 10.026 失敗所以多加一點上去
+        else:
+            return None
 
     def fetch_order_book(self, symbol, limit):
         if limit < 5:
