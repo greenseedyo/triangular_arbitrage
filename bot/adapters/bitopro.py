@@ -18,50 +18,7 @@ class MaxAdapter(Exchange):
 
     @staticmethod
     def get_min_trade_volume_limit(symbol):
-        # 隨時有可能會變動 https://max.maicoin.com/docs/limits
-        symbol = symbol.upper()
-        if 'TWD' == symbol:
-            return 250
-        elif 'BTC' == symbol:
-            return 0.001
-        elif 'ETH' == symbol:
-            return 0.05
-        elif 'LTC' == symbol:
-            return 0.14
-        elif 'BCH' == symbol:
-            return 0.03
-        elif 'MITH' == symbol:
-            return 582.0
-        elif 'USDT' == symbol:
-            return 8
-        elif 'TRX' == symbol:
-            return 620.0
-        elif 'CCCX' == symbol:
-            return 321.0
-        elif 'EOS' == symbol:
-            return 2.8
-        elif 'BAT' == symbol:
-            return 50.0
-        elif 'ZRX' == symbol:
-            return 30.0
-        elif 'GNT' == symbol:
-            return 173.0
-        elif 'OMG' == symbol:
-            return 9.0
-        elif 'KNC' == symbol:
-            return 47.0
-        elif 'XRP' == symbol:
-            return 33.0
-        elif 'FMF' == symbol:
-            return 	150000.0
-        elif 'MAX' == symbol:
-            return 100.0
-        elif 'SEELE' == symbol:
-            return 238.0
-        elif 'BCNT' == symbol:
-            return 300.0
-        else:
-            return None
+        return
 
     def fetch_order_book(self, symbol, limit=None, params=None):
         if limit is None:

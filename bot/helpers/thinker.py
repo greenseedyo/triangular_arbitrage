@@ -11,6 +11,36 @@ class Thinker:
         self.threshold_forward = config['threshold_forward']
         self.threshold_reverse = config['threshold_reverse']
 
+    def get_all_valid_combinations(self):
+        markets = self.exchange_adapter.fetch_markets()
+        # 應該有更好的做法
+        def find_valid_curB(curA, curC):
+            candidates = {}
+            valid_ones = {}
+            for m in markets:
+                candidate = m['base']
+                if candidate == curA or candidate == curC or (candidate in valid_ones):
+                    continue
+                if m['quote'] == curA or m['quote'] == curC:
+                    if candidate in candidates:  # 若已存在表示兩者皆有
+                        valid_ones[candidate] = True
+                    else:
+                        candidates[candidate] = True
+            return valid_ones
+    
+        combinations = {}
+        for market in markets:
+            if not market['active']:
+                continue
+            curA = market['quote']
+            curC = market['base']
+            valid_curB = find_valid_curB(curA, curC)
+            for curB in valid_curB:
+                key = '{}-{}-{}'.format(curA, curB, curC)
+                combinations[key] = [curA, curB, curC]
+        #print(combinations)
+        return combinations
+
     def check_forward_opportunity(self, ask_price_BA, bid_price_BC, bid_price_CA):
         ratio = self.get_op_ratio(ask_price_BA, bid_price_BC, bid_price_CA)
         #print('forward ratio: {}'.format(ratio))

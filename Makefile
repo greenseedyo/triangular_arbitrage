@@ -13,6 +13,9 @@ circle-check:
 circle-explore:
 	python -m bin.circle_explore
 
+circle-test:
+	python -m bin.circle_test
+
 swing:
 	python -m bin.swing
 

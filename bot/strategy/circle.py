@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import pandas
 import os
 import threading
+import asyncio
 from pprint import pprint
 
 
@@ -31,6 +32,68 @@ def set_error_logger():
 set_error_logger()
 
 
+def test():
+    curA_targets = ['ETH', 'BTC', 'USDT']
+    exchange = 'binance'
+    threshold_forward = 0.996
+    threshold_reverse = 1.004
+    max_curA_trade_amount = 10000
+    config = {
+        'threshold_forward': threshold_forward,  # 順向
+        'threshold_reverse': threshold_reverse,  # 逆向
+        'exchange': exchange,
+    }
+    thinker = Thinker(config)
+    valid_combinations = thinker.get_all_valid_combinations()
+    run_combinations = {}
+    markets = {}
+    for curA_target in curA_targets:
+        for key in valid_combinations:
+            combination = valid_combinations[key]
+            curA, curB, curC = combination
+            if curA != curA_target:
+                continue
+            run_combinations[key] = combination
+            symbol_BA = '{}/{}'.format(curB, curA)
+            symbol_BC = '{}/{}'.format(curB, curC)
+            symbol_CA = '{}/{}'.format(curC, curA)
+            markets[symbol_BA] = True
+            markets[symbol_BC] = True
+            markets[symbol_CA] = True
+    print(len(run_combinations))
+    t = threading.Thread(target=stream_order_books, args=(markets,))
+    t.start()
+    #time.sleep(5)
+    #print(utils.order_books)
+
+    while 1:
+        for key in run_combinations:
+            combination = run_combinations[key]
+            curA, curB, curC = combination
+            config = {
+                'curA': curA,
+                'curB': curB,
+                'curC': curC,
+                'threshold_forward': threshold_forward,  # 順向
+                'threshold_reverse': threshold_reverse,  # 逆向
+                'max_curA_trade_amount': max_curA_trade_amount,
+                'exchange': exchange,
+                'mode': 'explore',
+            }
+            try:
+                run_one(config)
+            except Exception as e:
+                print(e)
+                logging.getLogger('error').exception(e)
+            time.sleep(0.2)
+
+
+def stream_order_books(markets):
+    asyncio.set_event_loop(asyncio.new_event_loop())
+    adapter = utils.get_exchange_adapter('binance')
+    asyncio.get_event_loop().run_until_complete(adapter.stream_book_tickers(markets))
+
+
 def check():
     # enabled_curB_candidates = ['BTC', 'ETH', 'LTC', 'BCH', 'MITH', 'USDT', 'TRX', 'EOS', 'BAT', 'ZRX', 'GNT', 'OMG', 'KNC', 'XRP']
 
@@ -41,7 +104,7 @@ def check():
     # 交易金額上限設定 (測試時可設定較少金額)
     max_curA_trade_amount = 1000
 
-    exchange = 'max'
+    exchange = 'binance'
     config = {
         'curA': curA,
         'curB': curB,
@@ -63,10 +126,10 @@ def check():
 
 def explore():
     # 交易所設定
-    exchange = 'crex24'
+    exchange = 'binance'
 
-    curA_candidates = ['USDT', 'BTC', 'ETH', 'USD', 'USDT']
-    curB_candidates = ['ETH', 'NSD', 'ZEC', 'XRP', 'SBE', 'DOGE', 'MAR', 'LTC', 'XMR', 'WAVES', 'JDC', 'TRX', 'BCH', 'TELOS', 'CGEN',
+    curA_candidates = ['ETH']
+    curB_candidates = ['BTC', 'ETH', 'LINK', 'XRP', 'SBE', 'DOGE', 'MAR', 'LTC', 'XMR', 'WAVES', 'JDC', 'TRX', 'BCH', 'TELOS', 'CGEN',
                        'POP', 'VLU', 'OK', 'JDC', 'ILC']
     curC_candidates = ['USDT', 'BTC', 'ETH']
 
@@ -105,7 +168,7 @@ def explore():
                     except Exception as e:
                         print(e)
                         logging.getLogger('error').exception(e)
-                    #time.sleep(5)
+                    time.sleep(1)
             #time.sleep(10)
         print('---------------------------------------------------------------------')
 
@@ -182,9 +245,15 @@ def run_one(config):
     symbol_CA = '{}/{}'.format(curC, curA)
 
     # 取得交易對報價
-    order_book_BA = trader.get_order_book(symbol_BA, 1)
-    order_book_BC = trader.get_order_book(symbol_BC, 1)
-    order_book_CA = trader.get_order_book(symbol_CA, 1)
+    if config['exchange'] in utils.order_books:
+        order_books = utils.order_books[config['exchange']]
+        order_book_BA = order_books[symbol_BA.replace('/', '')]
+        order_book_BC = order_books[symbol_BC.replace('/', '')]
+        order_book_CA = order_books[symbol_CA.replace('/', '')]
+    else:
+        order_book_BA = trader.get_order_book(symbol_BA, 1)
+        order_book_BC = trader.get_order_book(symbol_BC, 1)
+        order_book_CA = trader.get_order_book(symbol_CA, 1)
 
     if (order_book_BA is None) or (order_book_BC is None) or (order_book_CA is None):
         return

@@ -37,14 +37,7 @@ class Trader:
 
     def get_real_rate(self, direction=None):
         handler = self.get_real_rate_handler(self.real_rate_handler)
-        while 1:
-            try:
-                real_rate = handler(direction)
-            except Exception as e:
-                print(e)
-                time.sleep(10)
-            else:
-                break
+        real_rate = handler(direction)
         print('real rate: {}'.format(real_rate))
         real_rate = float(real_rate)
         self.real_rate = real_rate

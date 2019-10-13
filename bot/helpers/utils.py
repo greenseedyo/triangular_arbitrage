@@ -5,6 +5,9 @@ import math
 from bot.helpers.slack import Slack
 
 
+order_books = {}
+
+
 def get_floored_amount(amount, digits=8):
     multiple = math.pow(10, digits)
     return math.floor(amount * multiple) / multiple
@@ -31,3 +34,4 @@ def get_exchange_adapter(exchange_name):
 
 def log_to_slack(msg):
     Slack.send_message(msg)
+

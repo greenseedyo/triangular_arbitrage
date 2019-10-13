@@ -10,10 +10,10 @@ from pprint import pprint
 import bot.helpers.utils as utils
 
 
-def set_error_logger():
+def set_error_logger(run_type):
     logger = logging.getLogger('error')
     logger.setLevel(logging.ERROR)
-    file_handler = logging.FileHandler("logs/error.log")
+    file_handler = logging.FileHandler("logs/error-{}.log".format(run_type))
     file_handler.setLevel(logging.ERROR)
     formatter = logging.Formatter(fmt="[%(asctime)s] %(filename)s[line:%(lineno)d]%(levelname)s - %(message)s\n",
                                   datefmt="%Y-%m-%d %H:%M:%S")
@@ -21,20 +21,20 @@ def set_error_logger():
     logger.addHandler(file_handler)
 
 
-set_error_logger()
-
 
 def plot():
+    set_error_logger('swing-plot')
     names = ['time', 'forward', 'reverse']
     data = pandas.read_csv('logs/ratio-TWD-USDT-USD-max-bitfinex.log', header=None, names=names)
     plt.plot(data.time, data.forward)
-    plt.plot(data.time, data.reverse)
+    #plt.plot(data.time, data.reverse)
     plt.axhline(y=0.9975, color='r', linestyle='-')
     plt.axhline(y=1.0025, color='r', linestyle='-')
     plt.show()
 
 
 def check():
+    set_error_logger('swing-check')
     first_currency = 'TWD'
     bridge_currency = 'ETH'
     second_currency = 'USDT'
@@ -82,14 +82,15 @@ def check():
 
 
 def explore():
+    set_error_logger('swing-explore')
     # 幣種設定
     first_currency = 'TWD'
     bridge_currency = 'USDT'
     second_currency = 'USD'
 
     # 可執行交易的 (操作匯率 / 銀行匯率) 閥值設定
-    threshold_forward = 0.9975  # 順向
-    threshold_reverse = 1.0025  # 逆向
+    threshold_forward = 0.990  # 順向
+    threshold_reverse = 0.998  # 逆向
 
     # 交易所設定
     primary_exchange = 'max'
@@ -119,8 +120,9 @@ def explore():
 
 
 def swing():
+    set_error_logger('swing')
     # enabled_bridge_currencies = ['BTC', 'ETH', 'LTC', 'BCH', 'MITH', 'USDT', 'TRX', 'EOS', 'BAT', 'ZRX', 'GNT', 'OMG', 'KNC', 'XRP']
-    enabled_bridge_currencies = ['ETH']
+    enabled_bridge_currencies = ['ETH', 'BTC']
 
     first_currency = 'TWD'
     second_currency = 'USDT'
@@ -130,8 +132,8 @@ def swing():
     max_first_currency_trade_amount = 10000
 
     # 可執行交易的 (操作匯率 / 銀行匯率) 閥值設定
-    threshold_forward = 0.9975  # 順向
-    threshold_reverse = 1.0025  # 逆向
+    threshold_forward = 0.996  # 順向
+    threshold_reverse = 1.004  # 逆向
 
     # 交易所設定
     primary_exchange = 'max'
