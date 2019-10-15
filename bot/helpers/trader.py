@@ -6,6 +6,7 @@ import ccxt
 import urllib
 from urllib import error
 import bot.helpers.utils as utils
+import websockets
 
 
 class Trader:
@@ -13,36 +14,44 @@ class Trader:
         self.exchange = config['exchange']
         self.exchange_adapter = utils.get_exchange_adapter(config['exchange'])
 
-    def get_min_trade_volume_limit(self, symbol):
-        return self.exchange_adapter.get_min_trade_volume_limit(symbol)
+    def has_websocket(self):
+        if hasattr(self.exchange_adapter, 'websocket_uri'):
+            return True
+        else:
+            return False
 
     def get_order_book(self, pair_symbol, limit):
-        adapter = self.exchange_adapter
         order_book = None
-        while 1:
-            try:
-                order_book = adapter.fetch_order_book(pair_symbol, limit=limit)
-                break
-            except ccxt.ExchangeError as e:
-                if str(e).find('No market symbol') != -1:
-                    raise NoMarketSymbolException
-                else:
-                    print(str(e))
+        if self.exchange in utils.stream_order_books_dict:
+            key = self.exchange_adapter.get_stream_order_book_key_by_market_symbol(pair_symbol)
+            order_books = utils.stream_order_books_dict[self.exchange]
+            #print(order_books)
+            if key in order_books:
+                order_book = order_books[key]
+        else:
+            while 1:
+                try:
+                    order_book = self.exchange_adapter.fetch_order_book(pair_symbol, limit=limit)
                     break
-            except urllib.error.HTTPError as e:
-                if 'HTTP Error 400: Bad Request' == str(e):
-                    return
-                else:
+                except ccxt.ExchangeError as e:
+                    if str(e).find('No market symbol') != -1:
+                        raise NoMarketSymbolException
+                    else:
+                        print(str(e))
+                        break
+                except urllib.error.HTTPError as e:
+                    if 'HTTP Error 400: Bad Request' == str(e):
+                        return
+                    else:
+                        print('sleep 10s...')
+                        time.sleep(10)
+                        continue
+                except Exception as e:
+                    # TODO: raise exception
+                    print(e)
                     print('sleep 10s...')
                     time.sleep(10)
                     continue
-            except Exception as e:
-                # TODO: raise exception
-                print(e)
-                print('sleep 10s...')
-                time.sleep(10)
-                continue
-        #print(order_book)
         return order_book
 
     def get_currencies_amounts(self, symbols):
@@ -165,6 +174,16 @@ class Trader:
                 got_amount = order['cost'] - fee
             utils.log_to_slack('Trade complete: {0}\ngot amount: {1:.8f}'.format(pair_symbol, got_amount))
             return got_amount
+
+    async def stream_order_books(self, market_symbols):
+        utils.stream_order_books_dict[self.exchange] = {}
+        uri = self.exchange_adapter.get_stream_order_books_uri(market_symbols)
+        async with websockets.connect(uri) as websocket:
+            while True:
+                result = await websocket.recv()
+                order_book = self.exchange_adapter.format_stream_order_book(result)
+                key = self.exchange_adapter.format_stream_order_book_key(result)
+                utils.stream_order_books_dict['binance'][key] = order_book
 
 
 class TradeSkippedException(Exception):

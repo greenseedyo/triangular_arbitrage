@@ -13,6 +13,7 @@ import os
 import threading
 import asyncio
 from pprint import pprint
+import sys
 
 
 ROOT_DIR = os.path.realpath('{}/../../../'.format(os.path.abspath(__file__)))
@@ -44,31 +45,18 @@ def test():
         'exchange': exchange,
     }
     thinker = Thinker(config)
-    valid_combinations = thinker.get_all_valid_combinations()
-    run_combinations = {}
-    markets = {}
-    for curA_target in curA_targets:
-        for key in valid_combinations:
-            combination = valid_combinations[key]
-            curA, curB, curC = combination
-            if curA != curA_target:
-                continue
-            run_combinations[key] = combination
-            symbol_BA = '{}/{}'.format(curB, curA)
-            symbol_BC = '{}/{}'.format(curB, curC)
-            symbol_CA = '{}/{}'.format(curC, curA)
-            markets[symbol_BA] = True
-            markets[symbol_BC] = True
-            markets[symbol_CA] = True
-    print(len(run_combinations))
-    t = threading.Thread(target=stream_order_books, args=(markets,))
+    trader = Trader(config)
+    target_combinations = thinker.get_target_combinations(curA_targets)
+    print(len(target_combinations))
+    market_symbols = thinker.get_market_symbols_of_combinations(target_combinations)
+    t = threading.Thread(target=stream_order_books, args=(trader, market_symbols,))
     t.start()
     #time.sleep(5)
     #print(utils.order_books)
 
     while 1:
-        for key in run_combinations:
-            combination = run_combinations[key]
+        for key in target_combinations:
+            combination = target_combinations[key]
             curA, curB, curC = combination
             config = {
                 'curA': curA,
@@ -88,23 +76,22 @@ def test():
             time.sleep(0.2)
 
 
-def stream_order_books(markets):
+def stream_order_books(trader, markets):
     asyncio.set_event_loop(asyncio.new_event_loop())
-    adapter = utils.get_exchange_adapter('binance')
-    asyncio.get_event_loop().run_until_complete(adapter.stream_book_tickers(markets))
+    asyncio.get_event_loop().run_until_complete(trader.stream_order_books(markets))
 
 
 def check():
     # enabled_curB_candidates = ['BTC', 'ETH', 'LTC', 'BCH', 'MITH', 'USDT', 'TRX', 'EOS', 'BAT', 'ZRX', 'GNT', 'OMG', 'KNC', 'XRP']
 
     curA = 'TWD'
-    curB = 'ZRX'
+    curB = 'ETH'
     curC = 'USDT'
 
     # 交易金額上限設定 (測試時可設定較少金額)
     max_curA_trade_amount = 1000
 
-    exchange = 'binance'
+    exchange = 'max'
     config = {
         'curA': curA,
         'curB': curB,
@@ -174,47 +161,57 @@ def explore():
 
 
 def run():
-    curB_candidates = ['MAX', 'BTC', 'ETH', 'LTC', 'BCH', 'MITH', 'USDT', 'TRX', 'EOS', 'BAT', 'ZRX', 'GNT', 'OMG', 'KNC', 'XRP']
-    curC_candidates = ['MAX', 'USDT', 'ETH', 'BTC']
+    # 交易所
+    exchange = sys.argv[1]
 
-    curA = 'TWD'
+    # 想賺的幣別
+    curA_targets = sys.argv[2].split(',')
 
     # 交易金額上限設定 (測試時可設定較少金額)
     max_curA_trade_amount = 30000
 
-    # 可執行交易的 (操作匯率 / 銀行匯率) 閥值設定
-    threshold_forward = 0.995  # 順向
-    threshold_reverse = 1.005  # 逆向
+    exchange_adapter = utils.get_exchange_adapter(exchange)
+    taker_fee_rate = exchange_adapter.taker_fee_rate
 
-    # 交易所設定
-    exchange = 'max'
+    # 可執行交易的 (操作匯率 / 銀行匯率) 閥值設定
+    threshold_forward = 1 - (taker_fee_rate * 3 + 0.0005)  # 順向
+    threshold_reverse = 1 + (taker_fee_rate * 3 + 0.0005)  # 逆向
+
+    config = {
+        'threshold_forward': threshold_forward,  # 順向
+        'threshold_reverse': threshold_reverse,  # 逆向
+        'exchange': exchange,
+    }
+    thinker = Thinker(config)
+    trader = Trader(config)
+    target_combinations = thinker.get_target_combinations(curA_targets)
+    market_symbols = thinker.get_market_symbols_of_combinations(target_combinations)
+    if trader.has_websocket():
+        t = threading.Thread(target=stream_order_books, args=(trader, market_symbols,))
+        t.start()
 
     while 1:
-        for curB in curB_candidates:
-            for curC in curC_candidates:
-                if curB == curC or curA == curC:
-                    continue
-
-                config = {
-                    'curA': curA,
-                    'curB': curB,
-                    'curC': curC,
-                    'max_curA_trade_amount': max_curA_trade_amount,
-                    'min_curB_trade_volume_limit': 0,
-                    'min_curC_trade_volume_limit': 0,
-                    'threshold_forward': threshold_forward,  # 順向
-                    'threshold_reverse': threshold_reverse,  # 逆向
-                    'exchange': exchange,
-                    'mode': 'production',
-                }
-                try:
-                    t = threading.Thread(target=run_one, args=(config,))
-                    t.start()
-                    #run_one(config)
-                except Exception as e:
-                    print(e)
-                    logging.getLogger('error').exception(e)
-                time.sleep(1)
+        for key in target_combinations:
+            combination = target_combinations[key]
+            curA, curB, curC = combination
+            config = {
+                'curA': curA,
+                'curB': curB,
+                'curC': curC,
+                'threshold_forward': threshold_forward,  # 順向
+                'threshold_reverse': threshold_reverse,  # 逆向
+                'max_curA_trade_amount': max_curA_trade_amount,
+                'exchange': exchange,
+                'mode': 'production',
+            }
+            try:
+                t = threading.Thread(target=run_one, args=(config,))
+                t.start()
+                #run_one(config)
+            except Exception as e:
+                print(e)
+                logging.getLogger('error').exception(e)
+            time.sleep(1)
         #time.sleep(10)
         print('---------------------------------------------------------------------')
 
@@ -235,25 +232,18 @@ def run_one(config):
     #pprint(trader.exchange_adapter.fetch_orders('USDT/TWD', limit=1))
     #return
 
-    # 交易量下限
-    min_curA_trade_volume_limit = trader.get_min_trade_volume_limit(curA)
-    min_curB_trade_volume_limit = trader.get_min_trade_volume_limit(curB)
-    min_curC_trade_volume_limit = trader.get_min_trade_volume_limit(curC)
-
+    # 交易量下限 (上限先不管)
     symbol_BA = '{}/{}'.format(curB, curA)
     symbol_BC = '{}/{}'.format(curB, curC)
     symbol_CA = '{}/{}'.format(curC, curA)
+    limits_BA = trader.exchange_adapter.fetch_trading_limits(symbol_BA)
+    limits_BC = trader.exchange_adapter.fetch_trading_limits(symbol_BC)
+    limits_CA = trader.exchange_adapter.fetch_trading_limits(symbol_CA)
 
     # 取得交易對報價
-    if config['exchange'] in utils.order_books:
-        order_books = utils.order_books[config['exchange']]
-        order_book_BA = order_books[symbol_BA.replace('/', '')]
-        order_book_BC = order_books[symbol_BC.replace('/', '')]
-        order_book_CA = order_books[symbol_CA.replace('/', '')]
-    else:
-        order_book_BA = trader.get_order_book(symbol_BA, 1)
-        order_book_BC = trader.get_order_book(symbol_BC, 1)
-        order_book_CA = trader.get_order_book(symbol_CA, 1)
+    order_book_BA = trader.get_order_book(symbol_BA, 1)
+    order_book_BC = trader.get_order_book(symbol_BC, 1)
+    order_book_CA = trader.get_order_book(symbol_CA, 1)
 
     if (order_book_BA is None) or (order_book_BC is None) or (order_book_CA is None):
         return
@@ -296,14 +286,15 @@ def run_one(config):
             price_BC = highest_bid_price_BC
             price_CA = highest_bid_price_CA
             take_volume = thinker.get_valid_forward_volume(max_curA_amount=max_curA_trade_amount,
-                                                           min_curA_trade_volume_limit=min_curA_trade_volume_limit,
-                                                           min_curB_trade_volume_limit=min_curB_trade_volume_limit,
-                                                           min_curC_trade_volume_limit=min_curC_trade_volume_limit,
+                                                           limits_BA=limits_BA,
+                                                           limits_BC=limits_BC,
+                                                           limits_CA=limits_CA,
                                                            curA_amount=curA_amount,
-                                                           price_BA=lowest_ask_price_BA,
+                                                           ask_price_BA=lowest_ask_price_BA,
                                                            ask_volume_BA=lowest_ask_volume_BA,
                                                            bid_price_BC=highest_bid_price_BC,
                                                            bid_volume_BC=highest_bid_volume_BC,
+                                                           bid_price_CA=highest_bid_price_CA,
                                                            bid_volume_CA=highest_bid_volume_CA)
             print('take volume: {}{}'.format(take_volume, curB))
             if 'production' == mode or 'test_real_trade' == mode:
@@ -315,14 +306,15 @@ def run_one(config):
             price_CA = lowest_ask_price_CA
             curA_amount = trader.get_currency_amount(curA)
             take_volume = thinker.get_valid_reverse_volume(max_curA_amount=max_curA_trade_amount,
-                                                           min_curA_trade_volume_limit=min_curA_trade_volume_limit,
-                                                           min_curB_trade_volume_limit=min_curB_trade_volume_limit,
-                                                           min_curC_trade_volume_limit=min_curC_trade_volume_limit,
+                                                           limits_BA=limits_BA,
+                                                           limits_BC=limits_BC,
+                                                           limits_CA=limits_CA,
                                                            curA_amount=curA_amount,
-                                                           price_CA=lowest_ask_price_CA,
+                                                           ask_price_CA=lowest_ask_price_CA,
                                                            ask_volume_CA=lowest_ask_volume_CA,
                                                            ask_price_BC=lowest_ask_price_BC,
                                                            ask_volume_BC=lowest_ask_volume_BC,
+                                                           bid_price_BA=highest_bid_price_BA,
                                                            bid_volume_BA=highest_bid_volume_BA)
             print('take volume: {}{}'.format(take_volume, curC))
             if 'production' == mode or 'test_real_trade' == mode:
@@ -348,7 +340,7 @@ def run_one(config):
             log_balance(exchange, amounts=amounts_after, amounts_before=amounts_before)
 
     if 'test_trade' == mode or 'test_real_trade' == mode:
-        exec_trade('reverse')
+        exec_trade('forward')
         return
 
     # 檢查是否可順向操作

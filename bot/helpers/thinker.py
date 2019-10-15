@@ -30,7 +30,7 @@ class Thinker:
     
         combinations = {}
         for market in markets:
-            if not market['active']:
+            if market['active'] == False:
                 continue
             curA = market['quote']
             curC = market['base']
@@ -38,8 +38,33 @@ class Thinker:
             for curB in valid_curB:
                 key = '{}-{}-{}'.format(curA, curB, curC)
                 combinations[key] = [curA, curB, curC]
-        #print(combinations)
         return combinations
+
+    @staticmethod
+    def get_market_symbols_of_combinations(combinations):
+        symbols = {}
+        for key in combinations:
+            combination = combinations[key]
+            curA, curB, curC = combination
+            symbol_BA = '{}/{}'.format(curB, curA)
+            symbol_BC = '{}/{}'.format(curB, curC)
+            symbol_CA = '{}/{}'.format(curC, curA)
+            symbols[symbol_BA] = True
+            symbols[symbol_BC] = True
+            symbols[symbol_CA] = True
+        return symbols.keys()
+
+    def get_target_combinations(self, curA_targets):
+        valid_combinations = self.get_all_valid_combinations()
+        target_combinations = {}
+        for curA_target in curA_targets:
+            for key in valid_combinations:
+                combination = valid_combinations[key]
+                curA, curB, curC = combination
+                if curA != curA_target:
+                    continue
+                target_combinations[key] = combination
+        return target_combinations
 
     def check_forward_opportunity(self, ask_price_BA, bid_price_BC, bid_price_CA):
         ratio = self.get_op_ratio(ask_price_BA, bid_price_BC, bid_price_CA)
@@ -66,18 +91,18 @@ class Thinker:
         ratio = op_rate / real_price
         return ratio
 
-    def get_valid_forward_volume(self, max_curA_amount, min_curA_trade_volume_limit, min_curB_trade_volume_limit,
-                                 min_curC_trade_volume_limit, curA_amount, price_BA, ask_volume_BA,
-                                 bid_price_BC, bid_volume_BC, bid_volume_CA):
+    def get_valid_forward_volume(self, max_curA_amount, limits_BA, limits_BC, limits_CA,
+                                 curA_amount, ask_price_BA, ask_volume_BA,
+                                 bid_price_BC, bid_volume_BC, bid_price_CA, bid_volume_CA):
         print('input: ', locals())
         # curA 可用金額
         valid_curA_amount = min(max_curA_amount, curA_amount)
         # curA 可用金額換算可買的 curB
-        curB_possible_volume = valid_curA_amount / price_BA
+        curB_possible_volume = valid_curA_amount / ask_price_BA
         # 最多就是 B/A 掛單上的量
-        valid_volume_BA = min(curB_possible_volume, ask_volume_BA)
+        valid_BA_volume = min(curB_possible_volume, ask_volume_BA)
         # 扣手續費後可拿到的 curB
-        real_valid_volume_curB = valid_volume_BA * (1 - self.exchange_adapter.taker_fee_rate)
+        real_valid_volume_curB = valid_BA_volume * (1 - self.exchange_adapter.taker_fee_rate)
 
         # B/C 可吃單的量
         valid_BC_volume = min(real_valid_volume_curB, bid_volume_BC)
@@ -91,7 +116,7 @@ class Thinker:
         # 換算需要買多少 curB 才夠
         needed_curB_amount = (needed_curC_amount / bid_price_BC) / (1 - self.exchange_adapter.taker_fee_rate)
         # 換算需要多少 curA 才夠
-        needed_curA_amount = (needed_curB_amount * price_BA) / (1 - self.exchange_adapter.taker_fee_rate)
+        needed_curA_amount = (needed_curB_amount * ask_price_BA) / (1 - self.exchange_adapter.taker_fee_rate)
 
         # 取到小數點第 8 位
         floored_needed_curA_amount = utils.get_floored_amount(needed_curA_amount)
@@ -100,7 +125,7 @@ class Thinker:
 
         print('valid_curA_amount', valid_curA_amount)
         print('curB_possible_volume', curB_possible_volume)
-        print('valid_volume_BA', valid_volume_BA)
+        print('valid_BA_volume', valid_BA_volume)
         print('real_valid_volume_curB', real_valid_volume_curB)
         print('valid_BC_volume', valid_BC_volume)
         print('real_valid_curC_amount', real_valid_curC_amount)
@@ -110,23 +135,29 @@ class Thinker:
         print('needed_curA_amount', needed_curA_amount)
 
         # 是否達最小交易量
-        if floored_needed_curA_amount < min_curA_trade_volume_limit:
+        if floored_needed_curA_amount < limits_BA['cost']['min']:
             return 0
-        elif floored_needed_curB_amount < min_curB_trade_volume_limit:
+        elif floored_needed_curA_amount / ask_price_BA < limits_BA['amount']['min']:
             return 0
-        elif floored_needed_curC_amount < min_curC_trade_volume_limit:
+        elif floored_needed_curB_amount < limits_BC['amount']['min']:
+            return 0
+        elif floored_needed_curB_amount * bid_price_BC < limits_BC['cost']['min']:
+            return 0
+        elif floored_needed_curC_amount < limits_CA['amount']['min']:
+            return 0
+        elif floored_needed_curC_amount * bid_price_CA < limits_CA['cost']['min']:
             return 0
         else:
             return floored_needed_curB_amount
 
-    def get_valid_reverse_volume(self, max_curA_amount, min_curA_trade_volume_limit, min_curB_trade_volume_limit,
-                                 min_curC_trade_volume_limit, curA_amount, price_CA, ask_volume_CA,
-                                 ask_price_BC, ask_volume_BC, bid_volume_BA):
+    def get_valid_reverse_volume(self, max_curA_amount, limits_BA, limits_BC, limits_CA,
+                                 curA_amount, ask_price_CA, ask_volume_CA,
+                                 ask_price_BC, ask_volume_BC, bid_price_BA, bid_volume_BA):
         print('input: ', locals())
         # curA 可用金額
         valid_curA_amount = min(max_curA_amount, curA_amount)
         # curA 可用金額換算可買到的 curC
-        possible_curC_volume = valid_curA_amount / price_CA
+        possible_curC_volume = valid_curA_amount / ask_price_CA
         # 最多就是 C/A 掛單上的量
         valid_volume_CA = min(possible_curC_volume, ask_volume_CA)
         # 實際上可拿到的 curC
@@ -146,7 +177,7 @@ class Thinker:
         # 換算需要買多少 curC 才夠
         needed_curC_amount = (needed_curB_amount * ask_price_BC) / (1 - self.exchange_adapter.taker_fee_rate)
         # 換算需要多少 curA 才夠
-        needed_curA_amount = (needed_curC_amount * price_CA) / (1 - self.exchange_adapter.taker_fee_rate)
+        needed_curA_amount = (needed_curC_amount * ask_price_CA) / (1 - self.exchange_adapter.taker_fee_rate)
 
 
         # 取到小數點第 8 位
@@ -166,11 +197,17 @@ class Thinker:
         print('needed_curA_amount', needed_curA_amount)
 
         # 是否達最小交易量
-        if floored_needed_curA_amount < min_curA_trade_volume_limit:
+        if floored_needed_curA_amount < limits_CA['cost']['min']:
             return 0
-        elif floored_needed_curB_amount < min_curB_trade_volume_limit:
+        elif (floored_needed_curA_amount / ask_price_CA) < limits_CA['amount']['min']:
             return 0
-        elif floored_needed_curC_amount < min_curC_trade_volume_limit:
+        elif floored_needed_curC_amount < limits_BC['cost']['min']:
+            return 0
+        elif (floored_needed_curC_amount / ask_price_BC) < limits_BC['amount']['min']:
+            return 0
+        elif floored_needed_curB_amount < limits_BA['amount']['min']:
+            return 0
+        elif (floored_needed_curB_amount * bid_price_BA) < limits_BA['cost']['min']:
             return 0
         else:
             return floored_needed_curC_amount

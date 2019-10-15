@@ -5,7 +5,7 @@ import math
 from bot.helpers.slack import Slack
 
 
-order_books = {}
+stream_order_books_dict = {}
 
 
 def get_floored_amount(amount, digits=8):

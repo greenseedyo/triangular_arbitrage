@@ -5,7 +5,7 @@ test:
 	nosetests tests
 
 circle:
-	python -m bin.circle
+	python -m bin.circle $(exchange) $(targets)
 
 circle-check:
 	python -m bin.circle_check
