@@ -14,7 +14,7 @@ import sys
 def set_error_logger(name):
     logger = logging.getLogger('error')
     logger.setLevel(logging.ERROR)
-    file_handler = logging.FileHandler("logs/error-{}.log".format(name))
+    file_handler = logging.FileHandler("logs/errors/{}.log".format(name))
     file_handler.setLevel(logging.ERROR)
     formatter = logging.Formatter(fmt="[%(asctime)s] %(filename)s[line:%(lineno)d]%(levelname)s - %(message)s\n",
                                   datefmt="%Y-%m-%d %H:%M:%S")
@@ -83,50 +83,20 @@ def check():
 
 
 def explore():
-    set_error_logger('swing-explore')
-    # 幣種設定
-    first_currency = 'TWD'
-    bridge_currency = 'USDT'
-    second_currency = 'USD'
-
-    # 可執行交易的 (操作匯率 / 銀行匯率) 閥值設定
-    threshold_forward = 0.990  # 順向
-    threshold_reverse = 0.998  # 逆向
-
-    # 交易所設定
-    primary_exchange = 'max'
-    secondary_exchange = 'bitfinex'
-
-    while 1:
-        # 取得銀行匯率 (時間, 現金買入, 現金賣出, 即期買入, 即期賣出)
-        config = {
-            'real_rate_handler': 'get_usdtwd_by_twder',
-            'bridge_currency': bridge_currency,
-            'first_currency': first_currency,
-            'second_currency': second_currency,
-            'max_first_currency_trade_amount': 0,
-            'min_bridge_currency_trade_amount': 0,
-            'threshold_forward': threshold_forward,  # 順向
-            'threshold_reverse': threshold_reverse,  # 逆向
-            'primary_exchange': primary_exchange,
-            'secondary_exchange': secondary_exchange,
-            'mode': 'explore',
-        }
-        try:
-            run_one(config)
-        except Exception as e:
-            print(e)
-            logging.exception(e)
-        time.sleep(30)
+    run_loop('explore')
 
 
 def swing():
+    run_loop('production')
+
+
+def run_loop(mode):
     # 交易所設定
     primary_exchange = 'max'
     secondary_exchange = sys.argv[1]
 
     # error_log 設定
-    error_log_name = 'swing-{}-{}'.format(primary_exchange, secondary_exchange)
+    error_log_name = 'swing-{}-{}-{}'.format(mode, primary_exchange, secondary_exchange)
     set_error_logger(error_log_name)
 
     # enabled_bridge_currencies = ['BTC', 'ETH', 'LTC', 'BCH', 'MITH', 'USDT', 'TRX', 'EOS', 'BAT', 'ZRX', 'GNT', 'OMG', 'KNC', 'XRP']
@@ -147,11 +117,9 @@ def swing():
                 'first_currency': first_currency,
                 'second_currency': second_currency,
                 'max_first_currency_trade_amount': max_first_currency_trade_amount,
-                #'threshold_forward': threshold_forward,  # 順向
-                #'threshold_reverse': threshold_reverse,  # 逆向
                 'primary_exchange': primary_exchange,
                 'secondary_exchange': secondary_exchange,
-                'mode': 'production',
+                'mode': mode,
             }
             try:
                 run_one(config)
@@ -166,12 +134,13 @@ def run_one(config):
     bridge_currency = config['bridge_currency']
     second_currency = config['second_currency']
 
+    symbol_primary = '{}/{}'.format(bridge_currency, first_currency)
+    symbol_secondary = '{}/{}'.format(bridge_currency, second_currency)
+
     print('[{}]'.format(time.strftime('%c')))
     print('{} - {} - {}'.format(first_currency, bridge_currency, second_currency))
 
     trader = swing_helpers.Trader(config)
-    config['min_first_currency_trade_amount'] = 0 #trader.primary_exchange_adapter.get_min_trade_volume_limit(first_currency)
-    config['min_secondary_currency_trade_amount'] = 0 #trader.secondary_exchange_adapter.get_min_trade_volume_limit(second_currency)
     min_bridge_in_primary_exchange = trader.primary_exchange_adapter.get_min_trade_volume_limit(bridge_currency)
     min_bridge_in_secondary_exchange = trader.primary_exchange_adapter.get_min_trade_volume_limit(bridge_currency)
     if min_bridge_in_primary_exchange is None:

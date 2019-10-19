@@ -10,10 +10,10 @@ import logging
 import matplotlib.pyplot as plt
 import pandas
 import os
-import threading
-import asyncio
 from pprint import pprint
 import sys
+import threading
+
 
 
 ROOT_DIR = os.path.realpath('{}/../../../'.format(os.path.abspath(__file__)))
@@ -22,7 +22,7 @@ ROOT_DIR = os.path.realpath('{}/../../../'.format(os.path.abspath(__file__)))
 def set_error_logger(name):
     logger = logging.getLogger('error')
     logger.setLevel(logging.ERROR)
-    file_handler = logging.FileHandler("logs/error-{}.log".format(name))
+    file_handler = logging.FileHandler("logs/errors/{}.log".format(name))
     file_handler.setLevel(logging.ERROR)
     formatter = logging.Formatter(fmt="[%(asctime)s] %(filename)s[line:%(lineno)d]%(levelname)s - %(message)s\n",
                                   datefmt="%Y-%m-%d %H:%M:%S")
@@ -30,55 +30,15 @@ def set_error_logger(name):
     logger.addHandler(file_handler)
 
 
-def test():
-    curA_targets = ['ETH', 'BTC', 'USDT']
-    exchange = 'binance'
-    threshold_forward = 0.996
-    threshold_reverse = 1.004
-    max_curA_trade_amount = 10000
-    config = {
-        'exchange': exchange,
-    }
-    thinker = Thinker(config)
-    trader = Trader(config)
-    target_combinations = thinker.get_target_combinations(curA_targets)
-    print(len(target_combinations))
-    market_symbols = thinker.get_market_symbols_of_combinations(target_combinations)
-    t = threading.Thread(target=stream_order_books, args=(trader, market_symbols,))
-    t.start()
-    #time.sleep(5)
-    #print(utils.order_books)
-
-    while 1:
-        for key in target_combinations:
-            combination = target_combinations[key]
-            curA, curB, curC = combination
-            config = {
-                'curA': curA,
-                'curB': curB,
-                'curC': curC,
-                'threshold_forward': threshold_forward,  # 順向
-                'threshold_reverse': threshold_reverse,  # 逆向
-                'max_curA_trade_amount': max_curA_trade_amount,
-                'exchange': exchange,
-                'mode': 'explore',
-            }
-            try:
-                run_one(config)
-            except Exception as e:
-                print(e)
-                logging.getLogger('error').exception(e)
-            time.sleep(0.2)
-
-
-def stream_order_books(trader, markets):
-    asyncio.set_event_loop(asyncio.new_event_loop())
-    asyncio.get_event_loop().run_until_complete(trader.stream_order_books(markets))
-
-
 def check():
-    # enabled_curB_candidates = ['BTC', 'ETH', 'LTC', 'BCH', 'MITH', 'USDT', 'TRX', 'EOS', 'BAT', 'ZRX', 'GNT', 'OMG', 'KNC', 'XRP']
+    mode = 'test_trade'
+    exchange = 'max'
 
+    # error_log 設定
+    error_log_name = 'circle-{}-{}'.format(mode, exchange)
+    set_error_logger(error_log_name)
+
+    # enabled_curB_candidates = ['BTC', 'ETH', 'LTC', 'BCH', 'MITH', 'USDT', 'TRX', 'EOS', 'BAT', 'ZRX', 'GNT', 'OMG', 'KNC', 'XRP']
     curA = 'TWD'
     curB = 'ETH'
     curC = 'USDT'
@@ -86,81 +46,40 @@ def check():
     # 交易金額上限設定 (測試時可設定較少金額)
     max_curA_trade_amount = 1000
 
-    exchange = 'max'
+    thinker = Thinker(exchange)
+    trader = Trader(exchange)
+
     config = {
         'curA': curA,
         'curB': curB,
         'curC': curC,
         'max_curA_trade_amount': max_curA_trade_amount,
-        'threshold_forward': 0.996,  # 順向
-        'threshold_reverse': 1.004,  # 逆向
         'exchange': exchange,
-        'mode': 'test_trade',
+        'thinker': thinker,
+        'trader': trader,
+        'mode': mode,
     }
     try:
         run_one(config)
-        #trader = Trader(config)
-        #amounts = trader.get_currencies_amounts([curA, curB, curC])
-        #pprint(amounts)
     except Exception as e:
         print(e)
 
 
-def explore():
-    # 交易所設定
-    exchange = 'binance'
-
-    curA_candidates = ['ETH']
-    curB_candidates = ['BTC', 'ETH', 'LINK', 'XRP', 'SBE', 'DOGE', 'MAR', 'LTC', 'XMR', 'WAVES', 'JDC', 'TRX', 'BCH', 'TELOS', 'CGEN',
-                       'POP', 'VLU', 'OK', 'JDC', 'ILC']
-    curC_candidates = ['USDT', 'BTC', 'ETH']
-
-    # 交易金額上限設定 (測試時可設定較少金額)
-    max_curA_trade_amount = 1000
-
-    # 可執行交易的 (操作匯率 / 銀行匯率) 閥值設定
-    threshold_forward = 0.9965  # 順向
-    threshold_reverse = 1.0035  # 逆向
-
-    skip_check = {}
-    while 1:
-        for curA in curA_candidates:
-            for curB in curB_candidates:
-                for curC in curC_candidates:
-                    if curA == curB or curB == curC or curA == curC:
-                        continue
-                    key = '{}-{}-{}'.format(curA, curB, curC)
-                    if key in skip_check:
-                        continue
-
-                    config = {
-                        'curA': curA,
-                        'curB': curB,
-                        'curC': curC,
-                        'threshold_forward': threshold_forward,  # 順向
-                        'threshold_reverse': threshold_reverse,  # 逆向
-                        'max_curA_trade_amount': max_curA_trade_amount,
-                        'exchange': exchange,
-                        'mode': 'explore',
-                    }
-                    try:
-                        run_one(config)
-                    except NoMarketSymbolException:
-                        skip_check[key] = True
-                    except Exception as e:
-                        print(e)
-                        logging.getLogger('error').exception(e)
-                    time.sleep(1)
-            #time.sleep(10)
-        print('---------------------------------------------------------------------')
-
-
 def run():
+    run_loop('production')
+
+
+def explore():
+    run_loop('explore')
+
+
+def run_loop(mode):
     # 交易所
+
     exchange = sys.argv[1]
 
     # error_log 設定
-    error_log_name = 'circle-{}'.format(exchange)
+    error_log_name = 'circle-{}-{}'.format(mode, exchange)
     set_error_logger(error_log_name)
 
     # 想賺的幣別
@@ -169,40 +88,51 @@ def run():
     # 交易金額上限設定 (測試時可設定較少金額)
     max_curA_trade_amount = 30000
 
-    config = {
-        'exchange': exchange,
-    }
-    thinker = Thinker(config)
-    trader = Trader(config)
+    thinker = Thinker(exchange)
+    trader = Trader(exchange)
+
     target_combinations = thinker.get_target_combinations(curA_targets)
     market_symbols = thinker.get_market_symbols_of_combinations(target_combinations)
-    if trader.has_websocket():
-        t = threading.Thread(target=stream_order_books, args=(trader, market_symbols,))
-        t.start()
+    if utils.has_websocket(exchange):
+        trader.thread_stream_order_books(market_symbols)
+
+    print('Exchange: {}'.format(exchange))
+    print('Thresholds: {} / {}'.format(thinker.threshold_forward, thinker.threshold_reverse))
+    print('Targets: {}'.format(sys.argv[2]))
+    print('Combinations: {}'.format(len(target_combinations)))
+    print("\n")
 
     while 1:
         for key in target_combinations:
             combination = target_combinations[key]
             curA, curB, curC = combination
             config = {
+                # 'threshold_forward': threshold_forward,  # 順向閥值，不給就吃預設值
+                # 'threshold_reverse': threshold_reverse,  # 逆向閥值，不給就吃預設值
                 'curA': curA,
                 'curB': curB,
                 'curC': curC,
-                #'threshold_forward': threshold_forward,  # 順向閥值，不給就吃預設值
-                #'threshold_reverse': threshold_reverse,  # 逆向閥值，不給就吃預設值
                 'max_curA_trade_amount': max_curA_trade_amount,
                 'exchange': exchange,
-                'mode': 'production',
+                'thinker': thinker,
+                'trader': trader,
+                'mode': mode,
             }
             try:
                 t = threading.Thread(target=run_one, args=(config,))
                 t.start()
                 #run_one(config)
+            except ConnectionAbortedError as e:
+                print(e)
+                return
             except Exception as e:
                 print(e)
                 logging.getLogger('error').exception(e)
-            time.sleep(1)
-        #time.sleep(10)
+
+            if utils.stream_started:
+                time.sleep(0.1)
+            else:
+                time.sleep(1)
         print('---------------------------------------------------------------------')
 
 
@@ -216,8 +146,8 @@ def run_one(config):
     print('[{}]'.format(time.strftime('%c')))
     print('{} - {} - {}'.format(curA, curB, curC))
 
-    trader = Trader(config)
-    thinker = Thinker(config)
+    trader = config['trader']
+    thinker = config['thinker']
 
     #pprint(trader.exchange_adapter.fetch_orders('USDT/TWD', limit=1))
     #return

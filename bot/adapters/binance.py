@@ -1,25 +1,19 @@
 # -*- coding: utf-8 -*-
 
 import ccxt
+from bot.adapters.ccxt_adapter import CcxtAdapter
 from secrets import BINANCE_KEY, BINANCE_SECRET
 import json
 
 
-class BinanceAdapter:
-    def __init__(self):
-        client = ccxt.binance({
-            'apiKey': BINANCE_KEY,
-            'secret': BINANCE_SECRET,
-        })
-        self.client = client
-        self.maker_fee_rate = 0.001
-        self.taker_fee_rate = 0.001
-        self.websocket_uri = "wss://stream.binance.com:9443"
+class BinanceAdapter(CcxtAdapter):
 
-    def fetch_trading_limits(self, market_symbol):
-        self.load_markets()
-        market = self.markets[market_symbol]
-        return market['limits']
+    ccxt_module_name = 'binance'
+    apiKey = BINANCE_KEY
+    secret = BINANCE_SECRET
+    maker_fee_rate = 0.001
+    taker_fee_rate = 0.001
+    websocket_uri = "wss://stream.binance.com:9443"
 
     def fetch_order_book(self, symbol, limit):
         if limit < 5:
@@ -29,6 +23,7 @@ class BinanceAdapter:
     def __getattr__(self, name):
         return getattr(self.client, name)
 
+    # Websocket implementation
     def get_stream_order_books_uri(self, market_symbols):
         stream_names = []
         for market_symbol in market_symbols:

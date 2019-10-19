@@ -1,20 +1,12 @@
 # -*- coding: utf-8 -*-
 
 import ccxt
+from bot.adapters.ccxt_adapter import CcxtAdapter
 
 
-class GeneralAdapter:
-    def __init__(self, exchange_name, key=None, secret=None):
-        exchange = getattr(ccxt, exchange_name)
-        client = exchange({
-            'apiKey': key,
-            'secret': secret,
-        })
-        self.client = client
-
-    @staticmethod
-    def get_min_trade_volume_limit(symbol):
-        return 0
-
-    def __getattr__(self, name):
-        return getattr(self.client, name)
+class GeneralAdapter(CcxtAdapter):
+    def __init__(self, ccxt_module_name, apiKey=None, secret=None):
+        self.ccxt_module_name = ccxt_module_name
+        self.apiKey = apiKey
+        self.secret = secret
+        CcxtAdapter.__init__(self)

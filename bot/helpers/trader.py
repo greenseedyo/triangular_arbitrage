@@ -7,22 +7,23 @@ import urllib
 from urllib import error
 import bot.helpers.utils as utils
 import websockets
+import threading
+import asyncio
 
 
 class Trader:
-    def __init__(self, config):
-        self.exchange = config['exchange']
-        self.exchange_adapter = utils.get_exchange_adapter(config['exchange'])
+    exchange = None
+    exchange_adapter = None
 
-    def has_websocket(self):
-        if hasattr(self.exchange_adapter, 'websocket_uri'):
-            return True
-        else:
-            return False
+    def __init__(self, exchange):
+        self.exchange = exchange
+        self.exchange_adapter = utils.get_exchange_adapter(exchange)
 
     def get_order_book(self, pair_symbol, limit):
         order_book = None
         if self.exchange in utils.stream_order_books_dict:
+            if not utils.stream_started:
+                raise ConnectionAbortedError('stream was not alive.')
             key = self.exchange_adapter.get_stream_order_book_key_by_market_symbol(pair_symbol)
             order_books = utils.stream_order_books_dict[self.exchange]
             #print(order_books)
@@ -120,6 +121,10 @@ class Trader:
         curA_amount = self.trade(symbol_BA, 'sell', curB_amount, price_BA)
         return curA_amount
 
+    def get_fee_rate(self, side):
+        # side: taker/maker
+        return self.exchange_adapter.fees['trading'][side]
+
     def trade(self, pair_symbol, side, amount, price):
         utils.log_to_slack('Trade start: {0}\n{1} volume: {2:.8f}'.format(pair_symbol, side, amount))
         exchange_adapter = self.exchange_adapter
@@ -160,20 +165,30 @@ class Trader:
                 time.sleep(0.5)
                 continue
 
-            #print(order)
+            taker_fee_rate = self.get_fee_rate('taker')
+
             # TODO: use adapter.fetch_trade()
             if 'buy' == side:
                 try:
                     fee = order['fee']['cost']
                 except Exception as e:
                     #print(e)
-                    fee = order['filled'] * exchange_adapter.taker_fee_rate
+                    fee = order['filled'] * taker_fee_rate
                 got_amount = order['filled'] - fee
             else:
-                fee = order['cost'] * exchange_adapter.taker_fee_rate
+                fee = order['cost'] * taker_fee_rate
                 got_amount = order['cost'] - fee
             utils.log_to_slack('Trade complete: {0}\ngot amount: {1:.8f}'.format(pair_symbol, got_amount))
             return got_amount
+
+    def thread_stream_order_books(self, market_symbols):
+        def run_streaming(trader, market_symbols):
+            asyncio.set_event_loop(asyncio.new_event_loop())
+            utils.stream_started = True
+            asyncio.get_event_loop().run_until_complete(trader.stream_order_books(market_symbols))
+            utils.stream_started = False
+        t = threading.Thread(target=run_streaming, args=(self, market_symbols,))
+        t.start()
 
     async def stream_order_books(self, market_symbols):
         utils.stream_order_books_dict[self.exchange] = {}

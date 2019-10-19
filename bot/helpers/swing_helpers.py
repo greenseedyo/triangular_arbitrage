@@ -30,7 +30,7 @@ class Trader:
         self.secondary_pair_symbol = '{}/{}'.format(self.bridge_currency, self.second_currency)
         self.real_rate = None
         self.real_pair_symbol = '{}/{}'.format(self.second_currency, self.first_currency)
-
+        
     def get_real_rate_handler(self, handler_name):
         handler = getattr(self, handler_name)
         return handler
@@ -228,31 +228,33 @@ class Trader:
 
 
 class Thinker:
+    threshold_forward = None
+    threshold_reverse = None
+
     def __init__(self, config):
+        # TODO: 把 exchange 以外的所有 config 移除
         self.max_first_currency_trade_amount = config['max_first_currency_trade_amount']
-        self.min_first_currency_trade_amount = config['min_first_currency_trade_amount']
-        self.min_secondary_currency_trade_amount = config['min_secondary_currency_trade_amount']
-        self.min_bridge_currency_trade_amount = config['min_bridge_currency_trade_amount']
         self.real_rate = config['real_rate']
         self.primary_exchange = config['primary_exchange']
         self.secondary_exchange = config['secondary_exchange']
         self.primary_exchange_adapter = get_exchange_adapter(config['primary_exchange'])
         self.secondary_exchange_adapter = get_exchange_adapter(config['secondary_exchange'])
+        self.primary_pair_symbol = '{}/{}'.format(config['bridge_currency'], config['first_currency'])
+        self.secondary_pair_symbol = '{}/{}'.format(config['bridge_currency'], config['second_currency'])
+        self.primary_exchange_limits = self.primary_exchange_adapter.fetch_trading_limits(self.primary_pair_symbol)
+        self.secondary_exchange_limits = self.secondary_exchange_adapter.fetch_trading_limits(self.secondary_pair_symbol)
+        threshold_forward = self.get_default_threshold('forward')
+        threshold_reverse = self.get_default_threshold('reverse')
+        self.set_thresholds(threshold_forward, threshold_reverse)
 
-        if 'threshold_forward' in config:
-            self.threshold_forward = config['threshold_forward']
-        else:
-            self.threshold_forward = self.get_default_threshold('forward')
-
-        if 'threshold_reverse' in config:
-            self.threshold_reverse = config['threshold_reverse']
-        else:
-            self.threshold_reverse = self.get_default_threshold('reverse')
+    def set_thresholds(self, threshold_forward, threshold_reverse):
+        self.threshold_forward = threshold_forward
+        self.threshold_reverse = threshold_reverse
 
     # 預設可執行交易的 (操作匯率 / 銀行匯率) 閥值
     def get_default_threshold(self, direction):
         primary_taker_fee_rate = self.primary_exchange_adapter.taker_fee_rate
-        secondary_taker_fee_rate = self.primary_exchange_adapter.taker_fee_rate
+        secondary_taker_fee_rate = self.secondary_exchange_adapter.taker_fee_rate
         sum_taker_fee_rate = primary_taker_fee_rate + secondary_taker_fee_rate
         # 單趟只會被收一次 taker_fee，但閥值設在兩趟的 taker_fee_rate 加總，故利潤空間為 taker_fee 總和的一倍
         if 'forward' == direction:
@@ -288,19 +290,19 @@ class Thinker:
                          sell_side_currency_amount, sell_side_highest_bid_price, sell_side_highest_bid_volume):
         print('input: ', locals())
         # max_buy_side_currency_trade_amount: 買進最大金額上限 (config 設定)
-        # min_order_volume: 買進最小成交量。需先把手續費加上去，避免賣出時的吃單量低於最小成交量限制
+        # min_swing_amount: 買進最小成交量。需先把手續費加上去，避免賣出時的吃單量低於最小成交量限制
         # 例：MAX 交易所的 ETH 最低交易量為 0.05，binance 手續費為 0.1%
         # 若在 Binance 買進 0.05，實際上只買到 0.04995，未達 MAX 的最低交易量)
         if 'forward' == direction:
             max_buy_side_currency_trade_amount = self.max_first_currency_trade_amount
-            min_order_volume = self.min_bridge_currency_trade_amount / (1 - self.primary_exchange_adapter.taker_fee_rate)
-            min_buy_side_trade_amount = self.min_first_currency_trade_amount
-            min_sell_side_trade_amount = self.min_secondary_currency_trade_amount
+            min_swing_amount = self.primary_exchange_limits['amount']['min'] / (1 - self.primary_exchange_adapter.taker_fee_rate)
+            min_buy_side_cost = self.primary_exchange_limits['cost']['min']
+            min_sell_side_trade_amount = self.secondary_exchange_limits['amount']['min']
         elif 'reverse' == direction:
             max_buy_side_currency_trade_amount = self.get_max_second_currency_trade_amount()
-            min_order_volume = self.min_bridge_currency_trade_amount / (1 - self.secondary_exchange_adapter.taker_fee_rate)
-            min_buy_side_trade_amount = self.min_secondary_currency_trade_amount
-            min_sell_side_trade_amount = self.min_first_currency_trade_amount
+            min_swing_amount = self.secondary_exchange_limits['amount']['min'] / (1 - self.secondary_exchange_adapter.taker_fee_rate)
+            min_buy_side_cost = self.secondary_exchange_limits['cost']['min']
+            min_sell_side_trade_amount = self.primary_exchange_limits['amount']['min']
         else:
             raise ValueError('direction must be forward or reverse')
 
@@ -322,8 +324,8 @@ class Thinker:
 
         msgs = []
         msgs.append('max_buy_side_currency_trade_amount: {}'.format(max_buy_side_currency_trade_amount))
-        msgs.append('min_order_volume: {}'.format(min_order_volume))
-        msgs.append('min_buy_side_trade_amount: {}'.format(min_buy_side_trade_amount))
+        msgs.append('min_swing_amount: {}'.format(min_swing_amount))
+        msgs.append('min_buy_side_cost: {}'.format(min_buy_side_cost))
         msgs.append('min_sell_side_trade_amount: {}'.format(min_sell_side_trade_amount))
         msgs.append('valid_buy_side_currency_amount: {}'.format(valid_buy_side_currency_amount))
         msgs.append('buy_side_currency_ability_volume: {}'.format(buy_side_currency_ability_volume))
@@ -337,9 +339,9 @@ class Thinker:
         #utils.log_to_slack(msg)
 
         # 實際要交易的量
-        if rounded_valid_take_volume < min_order_volume:
+        if rounded_valid_take_volume < min_swing_amount:
             return 0
-        elif buy_side_cost < min_buy_side_trade_amount:
+        elif buy_side_cost < min_buy_side_cost:
             return 0
         elif sell_side_income < min_sell_side_trade_amount:
             return 0

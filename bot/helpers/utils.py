@@ -5,6 +5,7 @@ import math
 from bot.helpers.slack import Slack
 
 
+stream_started = False
 stream_order_books_dict = {}
 
 
@@ -35,3 +36,10 @@ def get_exchange_adapter(exchange_name):
 def log_to_slack(msg):
     Slack.send_message(msg)
 
+
+def has_websocket(exchange_name):
+    exchange_adapter = get_exchange_adapter(exchange_name)
+    if exchange_adapter.websocket_uri is not None:
+        return True
+    else:
+        return False

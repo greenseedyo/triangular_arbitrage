@@ -13,8 +13,15 @@ class MaxAdapter(Exchange):
         Exchange.__init__(self)
         client = MaxClient(MAX_KEY, MAX_SECRET)
         self.client = client
-        self.maker_fee_rate = 0.001
-        self.taker_fee_rate = 0.0015
+        self.websocket_uri = None
+        self.fees = {
+            'trading': {
+                'tierBased': False,
+                'percentage': True,
+                'taker': 0.0015,
+                'maker': 0.001,
+            }
+        }
 
     @staticmethod
     def get_min_trade_volume_limit(symbol):

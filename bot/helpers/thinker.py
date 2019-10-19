@@ -5,22 +5,28 @@ import bot.helpers.utils as utils
 
 
 class Thinker:
-    def __init__(self, config):
-        self.exchange = config['exchange']
-        self.exchange_adapter = utils.get_exchange_adapter(config['exchange'])
+    exchange = None
+    exchange_adapter = None
+    threshold_forward = None
+    threshold_reverse = None
 
-        if 'threshold_forward' in config:
-            self.threshold_forward = config['threshold_forward']
-        else:
-            self.threshold_forward = self.get_default_threshold('forward')
+    def __init__(self, exchange):
+        self.exchange = exchange
+        self.exchange_adapter = utils.get_exchange_adapter(exchange)
+        threshold_forward = self.get_default_threshold('forward')
+        threshold_reverse = self.get_default_threshold('reverse')
+        self.set_thresholds(threshold_forward, threshold_reverse)
 
-        if 'threshold_reverse' in config:
-            self.threshold_reverse = config['threshold_reverse']
-        else:
-            self.threshold_reverse = self.get_default_threshold('reverse')
+    def set_thresholds(self, threshold_forward, threshold_reverse):
+        self.threshold_forward = threshold_forward
+        self.threshold_reverse = threshold_reverse
+
+    def get_fee_rate(self, side):
+        # side: taker/maker
+        return self.exchange_adapter.fees['trading'][side]
 
     def get_default_threshold(self, direction):
-        taker_fee_rate = self.exchange_adapter.taker_fee_rate
+        taker_fee_rate = self.get_fee_rate('taker')
         # 可執行交易的 (操作匯率 / 銀行匯率) 閥值設定
         if 'forward' == direction:
             return 1 - (taker_fee_rate * 3 + 0.0005)  # 順向
@@ -110,6 +116,7 @@ class Thinker:
     def get_valid_forward_volume(self, max_curA_amount, limits_BA, limits_BC, limits_CA,
                                  curA_amount, ask_price_BA, ask_volume_BA,
                                  bid_price_BC, bid_volume_BC, bid_price_CA, bid_volume_CA):
+        taker_fee_rate = self.get_fee_rate('taker')
         print('input: ', locals())
         # curA 可用金額
         valid_curA_amount = min(max_curA_amount, curA_amount)
@@ -118,21 +125,21 @@ class Thinker:
         # 最多就是 B/A 掛單上的量
         valid_BA_volume = min(curB_possible_volume, ask_volume_BA)
         # 扣手續費後可拿到的 curB
-        real_valid_volume_curB = valid_BA_volume * (1 - self.exchange_adapter.taker_fee_rate)
+        real_valid_volume_curB = valid_BA_volume * (1 - taker_fee_rate)
 
         # B/C 可吃單的量
         valid_BC_volume = min(real_valid_volume_curB, bid_volume_BC)
         # 實際上可以拿到的 curC
-        real_valid_curC_amount = (valid_BC_volume * bid_price_BC) * (1 - self.exchange_adapter.taker_fee_rate)
+        real_valid_curC_amount = (valid_BC_volume * bid_price_BC) * (1 - taker_fee_rate)
 
         # 可以吃下 C/A 的量
         valid_CA_volume = min(bid_volume_CA, real_valid_curC_amount)
         # 要吃掉 C/A 的量需要多少 curC 才夠
-        needed_curC_amount = valid_CA_volume / (1 - self.exchange_adapter.taker_fee_rate)
+        needed_curC_amount = valid_CA_volume / (1 - taker_fee_rate)
         # 換算需要買多少 curB 才夠
-        needed_curB_amount = (needed_curC_amount / bid_price_BC) / (1 - self.exchange_adapter.taker_fee_rate)
+        needed_curB_amount = (needed_curC_amount / bid_price_BC) / (1 - taker_fee_rate)
         # 換算需要多少 curA 才夠
-        needed_curA_amount = (needed_curB_amount * ask_price_BA) / (1 - self.exchange_adapter.taker_fee_rate)
+        needed_curA_amount = (needed_curB_amount * ask_price_BA) / (1 - taker_fee_rate)
 
         # 取到小數點第 8 位
         floored_needed_curA_amount = utils.get_floored_amount(needed_curA_amount)
@@ -169,6 +176,7 @@ class Thinker:
     def get_valid_reverse_volume(self, max_curA_amount, limits_BA, limits_BC, limits_CA,
                                  curA_amount, ask_price_CA, ask_volume_CA,
                                  ask_price_BC, ask_volume_BC, bid_price_BA, bid_volume_BA):
+        taker_fee_rate = self.get_fee_rate('taker')
         print('input: ', locals())
         # curA 可用金額
         valid_curA_amount = min(max_curA_amount, curA_amount)
@@ -177,23 +185,23 @@ class Thinker:
         # 最多就是 C/A 掛單上的量
         valid_volume_CA = min(possible_curC_volume, ask_volume_CA)
         # 實際上可拿到的 curC
-        real_valid_volume_curC = valid_volume_CA * (1 - self.exchange_adapter.taker_fee_rate)
+        real_valid_volume_curC = valid_volume_CA * (1 - taker_fee_rate)
 
         # 拿到的 curC 可以換到多少 curB
         possible_curB_volume = real_valid_volume_curC / ask_price_BC
         # B/C 可吃單的量
         valid_BC_volume = min(possible_curB_volume, ask_volume_BC)
         # 實際上可以拿到的 curB
-        real_valid_curB_amount = valid_BC_volume * (1 - self.exchange_adapter.taker_fee_rate)
+        real_valid_curB_amount = valid_BC_volume * (1 - taker_fee_rate)
 
         # 可以吃下 B/A 的量
         valid_BA_volume = min(bid_volume_BA, real_valid_curB_amount)
         # 要吃掉 B/A 的量需要多少 curB 才夠
-        needed_curB_amount = valid_BA_volume / (1 - self.exchange_adapter.taker_fee_rate)
+        needed_curB_amount = valid_BA_volume / (1 - taker_fee_rate)
         # 換算需要買多少 curC 才夠
-        needed_curC_amount = (needed_curB_amount * ask_price_BC) / (1 - self.exchange_adapter.taker_fee_rate)
+        needed_curC_amount = (needed_curB_amount * ask_price_BC) / (1 - taker_fee_rate)
         # 換算需要多少 curA 才夠
-        needed_curA_amount = (needed_curC_amount * ask_price_CA) / (1 - self.exchange_adapter.taker_fee_rate)
+        needed_curA_amount = (needed_curC_amount * ask_price_CA) / (1 - taker_fee_rate)
 
 
         # 取到小數點第 8 位

@@ -4,26 +4,28 @@ init:
 test:
 	nosetests tests
 
+
 circle:
 	python -m bin.circle $(exchange) $(targets)
+
+circle-explore:
+	python -m bin.circle_explore $(exchange) $(targets)
 
 circle-check:
 	python -m bin.circle_check
 
-circle-explore:
-	python -m bin.circle_explore
-
 circle-test:
 	python -m bin.circle_test
+
 
 swing:
 	python -m bin.swing $(exchange) $(bridges)
 
-check:
-	python -m bin.check
+swing-explore:
+	python -m bin.swing_explore $(exchange) $(bridges)
 
-plot:
-	python -m bin.plot
+swing-plot:
+	python -m bin.swing_plot
 
-explore:
-	python -m bin.explore
+swing-check:
+	python -m bin.swing_check
