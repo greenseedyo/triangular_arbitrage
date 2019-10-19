@@ -6,10 +6,10 @@ test:
 
 
 circle:
-	python -m bin.circle $(exchange) $(targets)
+	python -m bin.circle $(exchange) $(targets) $(interval)
 
 circle-explore:
-	python -m bin.circle_explore $(exchange) $(targets)
+	python -m bin.circle_explore $(exchange) $(targets) $(interval)
 
 circle-check:
 	python -m bin.circle_check

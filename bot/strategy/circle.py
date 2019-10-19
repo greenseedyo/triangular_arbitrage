@@ -75,7 +75,6 @@ def explore():
 
 def run_loop(mode):
     # 交易所
-
     exchange = sys.argv[1]
 
     # error_log 設定
@@ -88,12 +87,19 @@ def run_loop(mode):
     # 交易金額上限設定 (測試時可設定較少金額)
     max_cur1_trade_amount = 30000
 
+    # 輪詢間隔
+    interval = int(sys.argv[3]) if len(sys.argv) >= 3 else 1
+
+    # helpers
     thinker = Thinker(exchange)
     trader = Trader(exchange)
 
+    # 尋找可行的 triangular arbitrage 組合
     target_combinations = thinker.get_target_combinations(cur1_targets)
-    market_symbols = thinker.get_market_symbols_of_combinations(target_combinations)
+
+    # 若有 websocket 就開另一個 thread 做 streaming
     if utils.has_websocket(exchange):
+        market_symbols = thinker.get_market_symbols_of_combinations(target_combinations)
         trader.thread_stream_order_books(market_symbols)
 
     print('Exchange: {}'.format(exchange))
@@ -124,7 +130,7 @@ def run_loop(mode):
             if utils.cross_threads_variables['stream_started']:
                 time.sleep(0.1)
             else:
-                time.sleep(1)
+                time.sleep(interval)
         print('---------------------------------------------------------------------')
 
 

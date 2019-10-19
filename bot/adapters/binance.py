@@ -1,18 +1,14 @@
 # -*- coding: utf-8 -*-
 
-import ccxt
 from bot.adapters.ccxt_adapter import CcxtAdapter
 from secrets import BINANCE_KEY, BINANCE_SECRET
 import json
 
 
 class BinanceAdapter(CcxtAdapter):
-
     ccxt_module_name = 'binance'
     apiKey = BINANCE_KEY
     secret = BINANCE_SECRET
-    maker_fee_rate = 0.001
-    taker_fee_rate = 0.001
     websocket_uri = "wss://stream.binance.com:9443"
 
     def fetch_order_book(self, symbol, limit):

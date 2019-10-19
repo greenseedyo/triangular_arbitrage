@@ -138,7 +138,7 @@ class Trader:
         # bridge currency / second currency 的 bid 價格
         rate = float(secondary_pair_order_book['bids'][0][0])
         equivalent_bridge_currency_amount = volume / rate
-        needed_bridge_currency_amount = equivalent_bridge_currency_amount / (1 - self.secondary_exchange_adapter.taker_fee_rate)
+        needed_bridge_currency_amount = equivalent_bridge_currency_amount / (1 - self.get_secondary_exchange_fee_rate('taker'))
         return needed_bridge_currency_amount
 
     def exec_test_trade(self, take_volume):
@@ -173,9 +173,11 @@ class Trader:
         if 'primary' == exchange_type:
             exchange_adapter = self.primary_exchange_adapter
             pair_symbol = self.primary_pair_symbol
+            fee_rate = self.get_primary_exchange_fee_rate('taker')
         elif 'secondary' == exchange_type:
             exchange_adapter = self.secondary_exchange_adapter
             pair_symbol = self.secondary_pair_symbol
+            fee_rate = self.get_secondary_exchange_fee_rate('taker')
 
         #print('{} {}: {} {}'.format(exchange_type, pair_symbol, side, amount))
 
@@ -215,7 +217,7 @@ class Trader:
                     fee = order['fee']['cost']
                 except Exception as e:
                     #print(e)
-                    fee = order['filled'] * exchange_adapter.taker_fee_rate
+                    fee = order['filled'] * fee_rate
 
             traded_amount = order['filled'] - fee
             return traded_amount
@@ -251,10 +253,18 @@ class Thinker:
         self.threshold_forward = threshold_forward
         self.threshold_reverse = threshold_reverse
 
+    def get_primary_exchange_fee_rate(self, side):
+        # side: taker/maker
+        return self.primary_exchange_adapter.fees['trading'][side]
+
+    def get_secondary_exchange_fee_rate(self, side):
+        # side: taker/maker
+        return self.secondary_exchange_adapter.fees['trading'][side]
+
     # 預設可執行交易的 (操作匯率 / 銀行匯率) 閥值
     def get_default_threshold(self, direction):
-        primary_taker_fee_rate = self.primary_exchange_adapter.taker_fee_rate
-        secondary_taker_fee_rate = self.secondary_exchange_adapter.taker_fee_rate
+        primary_taker_fee_rate = self.get_primary_exchange_fee_rate('taker')
+        secondary_taker_fee_rate = self.get_secondary_exchange_fee_rate('taker')
         sum_taker_fee_rate = primary_taker_fee_rate + secondary_taker_fee_rate
         # 單趟只會被收一次 taker_fee，但閥值設在兩趟的 taker_fee_rate 加總，故利潤空間為 taker_fee 總和的一倍
         if 'forward' == direction:
@@ -295,12 +305,12 @@ class Thinker:
         # 若在 Binance 買進 0.05，實際上只買到 0.04995，未達 MAX 的最低交易量)
         if 'forward' == direction:
             max_buy_side_currency_trade_amount = self.max_first_currency_trade_amount
-            min_swing_amount = self.primary_exchange_limits['amount']['min'] / (1 - self.primary_exchange_adapter.taker_fee_rate)
+            min_swing_amount = self.primary_exchange_limits['amount']['min'] / (1 - self.get_primary_exchange_fee_rate('taker'))
             min_buy_side_cost = self.primary_exchange_limits['cost']['min']
             min_sell_side_trade_amount = self.secondary_exchange_limits['amount']['min']
         elif 'reverse' == direction:
             max_buy_side_currency_trade_amount = self.get_max_second_currency_trade_amount()
-            min_swing_amount = self.secondary_exchange_limits['amount']['min'] / (1 - self.secondary_exchange_adapter.taker_fee_rate)
+            min_swing_amount = self.secondary_exchange_limits['amount']['min'] / (1 - self.get_secondary_exchange_fee_rate('taker'))
             min_buy_side_cost = self.secondary_exchange_limits['cost']['min']
             min_sell_side_trade_amount = self.primary_exchange_limits['amount']['min']
         else:
