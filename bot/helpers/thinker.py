@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-import sys
 import bot.helpers.utils as utils
 
 
@@ -35,15 +34,16 @@ class Thinker:
 
     def get_all_valid_combinations(self):
         markets = self.exchange_adapter.fetch_markets()
+
         # 應該有更好的做法
-        def find_valid_curB(curA, curC):
+        def find_valid_cur2(tmp_cur1, tmp_cur3):
             candidates = {}
             valid_ones = {}
             for m in markets:
                 candidate = m['base']
-                if candidate == curA or candidate == curC or (candidate in valid_ones):
+                if candidate == tmp_cur1 or candidate == tmp_cur3 or (candidate in valid_ones):
                     continue
-                if m['quote'] == curA or m['quote'] == curC:
+                if m['quote'] == tmp_cur1 or m['quote'] == tmp_cur3:
                     if candidate in candidates:  # 若已存在表示兩者皆有
                         valid_ones[candidate] = True
                     else:
@@ -52,14 +52,14 @@ class Thinker:
     
         combinations = {}
         for market in markets:
-            if market['active'] == False:
+            if not market['active']:
                 continue
-            curA = market['quote']
-            curC = market['base']
-            valid_curB = find_valid_curB(curA, curC)
-            for curB in valid_curB:
-                key = '{}-{}-{}'.format(curA, curB, curC)
-                combinations[key] = [curA, curB, curC]
+            cur1 = market['quote']
+            cur3 = market['base']
+            valid_cur2 = find_valid_cur2(cur1, cur3)
+            for cur2 in valid_cur2:
+                key = '{}-{}-{}'.format(cur1, cur2, cur3)
+                combinations[key] = [cur1, cur2, cur3]
         return combinations
 
     @staticmethod
@@ -67,171 +67,169 @@ class Thinker:
         symbols = {}
         for key in combinations:
             combination = combinations[key]
-            curA, curB, curC = combination
-            symbol_BA = '{}/{}'.format(curB, curA)
-            symbol_BC = '{}/{}'.format(curB, curC)
-            symbol_CA = '{}/{}'.format(curC, curA)
-            symbols[symbol_BA] = True
-            symbols[symbol_BC] = True
-            symbols[symbol_CA] = True
+            cur1, cur2, cur3 = combination
+            symbol_21 = '{}/{}'.format(cur2, cur1)
+            symbol_23 = '{}/{}'.format(cur2, cur3)
+            symbol_31 = '{}/{}'.format(cur3, cur1)
+            symbols[symbol_21] = True
+            symbols[symbol_23] = True
+            symbols[symbol_31] = True
         return symbols.keys()
 
-    def get_target_combinations(self, curA_targets):
+    def get_target_combinations(self, cur1_targets):
         valid_combinations = self.get_all_valid_combinations()
         target_combinations = {}
-        for curA_target in curA_targets:
+        for cur1_target in cur1_targets:
             for key in valid_combinations:
                 combination = valid_combinations[key]
-                curA, curB, curC = combination
-                if curA != curA_target:
+                cur1, cur2, cur3 = combination
+                if cur1 != cur1_target:
                     continue
                 target_combinations[key] = combination
         return target_combinations
 
-    def check_forward_opportunity(self, ask_price_BA, bid_price_BC, bid_price_CA):
-        ratio = self.get_op_ratio(ask_price_BA, bid_price_BC, bid_price_CA)
-        #print('forward ratio: {}'.format(ratio))
-        # 若比值小於 1，表示可以用較低的價格用 curA 透過 curB 換到 curC
+    def check_forward_opportunity(self, ask_price_21, bid_price_23, bid_price_31):
+        ratio = self.get_op_ratio(ask_price_21, bid_price_23, bid_price_31)
+        # 若比值小於 1，表示可以用較低的價格用 cur1 透過 cur2 換到 cur3
         if ratio <= self.threshold_forward:
             return True
         else:
             return False
 
-    def check_reverse_opportunity(self, bid_price_BA, ask_price_BC, ask_price_CA):
-        ratio = self.get_op_ratio(bid_price_BA, ask_price_BC, ask_price_CA)
-        #print('reverse ratio: {}'.format(ratio))
-        # 若比值大於 1，表示可以用較高的價格用 curC 透過 curB 換到 curA
+    def check_reverse_opportunity(self, bid_price_21, ask_price_23, ask_price_31):
+        ratio = self.get_op_ratio(bid_price_21, ask_price_23, ask_price_31)
+        # 若比值大於 1，表示可以用較高的價格用 cur3 透過 cur2 換到 cur1
         if ratio >= self.threshold_reverse:
             return True
         else:
             return False
 
-    def get_op_ratio(self, primary_price, secondary_price, real_price):
+    @staticmethod
+    def get_op_ratio(primary_price, secondary_price, real_price):
         # 計算操作匯率
         op_rate = primary_price / secondary_price
         # 計算比值
         ratio = op_rate / real_price
         return ratio
 
-    def get_valid_forward_volume(self, max_curA_amount, limits_BA, limits_BC, limits_CA,
-                                 curA_amount, ask_price_BA, ask_volume_BA,
-                                 bid_price_BC, bid_volume_BC, bid_price_CA, bid_volume_CA):
+    def get_valid_forward_volume(self, max_cur1_amount, limits_21, limits_23, limits_31,
+                                 cur1_amount, ask_price_21, ask_volume_21,
+                                 bid_price_23, bid_volume_23, bid_price_31, bid_volume_31):
         taker_fee_rate = self.get_fee_rate('taker')
         print('input: ', locals())
-        # curA 可用金額
-        valid_curA_amount = min(max_curA_amount, curA_amount)
-        # curA 可用金額換算可買的 curB
-        curB_possible_volume = valid_curA_amount / ask_price_BA
+        # cur1 可用金額
+        valid_cur1_amount = min(max_cur1_amount, cur1_amount)
+        # cur1 可用金額換算可買的 cur2
+        cur2_possible_volume = valid_cur1_amount / ask_price_21
         # 最多就是 B/A 掛單上的量
-        valid_BA_volume = min(curB_possible_volume, ask_volume_BA)
-        # 扣手續費後可拿到的 curB
-        real_valid_volume_curB = valid_BA_volume * (1 - taker_fee_rate)
+        valid_21_volume = min(cur2_possible_volume, ask_volume_21)
+        # 扣手續費後可拿到的 cur2
+        real_valid_volume_cur2 = valid_21_volume * (1 - taker_fee_rate)
 
         # B/C 可吃單的量
-        valid_BC_volume = min(real_valid_volume_curB, bid_volume_BC)
-        # 實際上可以拿到的 curC
-        real_valid_curC_amount = (valid_BC_volume * bid_price_BC) * (1 - taker_fee_rate)
+        valid_23_volume = min(real_valid_volume_cur2, bid_volume_23)
+        # 實際上可以拿到的 cur3
+        real_valid_cur3_amount = (valid_23_volume * bid_price_23) * (1 - taker_fee_rate)
 
         # 可以吃下 C/A 的量
-        valid_CA_volume = min(bid_volume_CA, real_valid_curC_amount)
-        # 要吃掉 C/A 的量需要多少 curC 才夠
-        needed_curC_amount = valid_CA_volume / (1 - taker_fee_rate)
-        # 換算需要買多少 curB 才夠
-        needed_curB_amount = (needed_curC_amount / bid_price_BC) / (1 - taker_fee_rate)
-        # 換算需要多少 curA 才夠
-        needed_curA_amount = (needed_curB_amount * ask_price_BA) / (1 - taker_fee_rate)
+        valid_31_volume = min(bid_volume_31, real_valid_cur3_amount)
+        # 要吃掉 C/A 的量需要多少 cur3 才夠
+        needed_cur3_amount = valid_31_volume / (1 - taker_fee_rate)
+        # 換算需要買多少 cur2 才夠
+        needed_cur2_amount = (needed_cur3_amount / bid_price_23) / (1 - taker_fee_rate)
+        # 換算需要多少 cur1 才夠
+        needed_cur1_amount = (needed_cur2_amount * ask_price_21) / (1 - taker_fee_rate)
 
         # 取到小數點第 8 位
-        floored_needed_curA_amount = utils.get_floored_amount(needed_curA_amount)
-        floored_needed_curB_amount = utils.get_floored_amount(needed_curB_amount)
-        floored_needed_curC_amount = utils.get_floored_amount(needed_curC_amount)
+        floored_needed_cur1_amount = utils.get_floored_amount(needed_cur1_amount)
+        floored_needed_cur2_amount = utils.get_floored_amount(needed_cur2_amount)
+        floored_needed_cur3_amount = utils.get_floored_amount(needed_cur3_amount)
 
-        print('valid_curA_amount', valid_curA_amount)
-        print('curB_possible_volume', curB_possible_volume)
-        print('valid_BA_volume', valid_BA_volume)
-        print('real_valid_volume_curB', real_valid_volume_curB)
-        print('valid_BC_volume', valid_BC_volume)
-        print('real_valid_curC_amount', real_valid_curC_amount)
-        print('valid_CA_volume', valid_CA_volume)
-        print('needed_curC_amount', needed_curC_amount)
-        print('needed_curB_amount', needed_curB_amount)
-        print('needed_curA_amount', needed_curA_amount)
+        print('valid_cur1_amount', valid_cur1_amount)
+        print('cur2_possible_volume', cur2_possible_volume)
+        print('valid_21_volume', valid_21_volume)
+        print('real_valid_volume_cur2', real_valid_volume_cur2)
+        print('valid_23_volume', valid_23_volume)
+        print('real_valid_cur3_amount', real_valid_cur3_amount)
+        print('valid_31_volume', valid_31_volume)
+        print('needed_cur3_amount', needed_cur3_amount)
+        print('needed_cur2_amount', needed_cur2_amount)
+        print('needed_cur1_amount', needed_cur1_amount)
 
         # 是否達最小交易量
-        if floored_needed_curA_amount < limits_BA['cost']['min']:
+        if floored_needed_cur1_amount < limits_21['cost']['min']:
             return 0
-        elif floored_needed_curA_amount / ask_price_BA < limits_BA['amount']['min']:
+        elif floored_needed_cur1_amount / ask_price_21 < limits_21['amount']['min']:
             return 0
-        elif floored_needed_curB_amount < limits_BC['amount']['min']:
+        elif floored_needed_cur2_amount < limits_23['amount']['min']:
             return 0
-        elif floored_needed_curB_amount * bid_price_BC < limits_BC['cost']['min']:
+        elif floored_needed_cur2_amount * bid_price_23 < limits_23['cost']['min']:
             return 0
-        elif floored_needed_curC_amount < limits_CA['amount']['min']:
+        elif floored_needed_cur3_amount < limits_31['amount']['min']:
             return 0
-        elif floored_needed_curC_amount * bid_price_CA < limits_CA['cost']['min']:
+        elif floored_needed_cur3_amount * bid_price_31 < limits_31['cost']['min']:
             return 0
         else:
-            return floored_needed_curB_amount
+            return floored_needed_cur2_amount
 
-    def get_valid_reverse_volume(self, max_curA_amount, limits_BA, limits_BC, limits_CA,
-                                 curA_amount, ask_price_CA, ask_volume_CA,
-                                 ask_price_BC, ask_volume_BC, bid_price_BA, bid_volume_BA):
+    def get_valid_reverse_volume(self, max_cur1_amount, limits_21, limits_23, limits_31,
+                                 cur1_amount, ask_price_31, ask_volume_31,
+                                 ask_price_23, ask_volume_23, bid_price_21, bid_volume_21):
         taker_fee_rate = self.get_fee_rate('taker')
         print('input: ', locals())
-        # curA 可用金額
-        valid_curA_amount = min(max_curA_amount, curA_amount)
-        # curA 可用金額換算可買到的 curC
-        possible_curC_volume = valid_curA_amount / ask_price_CA
+        # cur1 可用金額
+        valid_cur1_amount = min(max_cur1_amount, cur1_amount)
+        # cur1 可用金額換算可買到的 cur3
+        possible_cur3_volume = valid_cur1_amount / ask_price_31
         # 最多就是 C/A 掛單上的量
-        valid_volume_CA = min(possible_curC_volume, ask_volume_CA)
-        # 實際上可拿到的 curC
-        real_valid_volume_curC = valid_volume_CA * (1 - taker_fee_rate)
+        valid_volume_31 = min(possible_cur3_volume, ask_volume_31)
+        # 實際上可拿到的 cur3
+        real_valid_volume_cur3 = valid_volume_31 * (1 - taker_fee_rate)
 
-        # 拿到的 curC 可以換到多少 curB
-        possible_curB_volume = real_valid_volume_curC / ask_price_BC
+        # 拿到的 cur3 可以換到多少 cur2
+        possible_cur2_volume = real_valid_volume_cur3 / ask_price_23
         # B/C 可吃單的量
-        valid_BC_volume = min(possible_curB_volume, ask_volume_BC)
-        # 實際上可以拿到的 curB
-        real_valid_curB_amount = valid_BC_volume * (1 - taker_fee_rate)
+        valid_23_volume = min(possible_cur2_volume, ask_volume_23)
+        # 實際上可以拿到的 cur2
+        real_valid_cur2_amount = valid_23_volume * (1 - taker_fee_rate)
 
         # 可以吃下 B/A 的量
-        valid_BA_volume = min(bid_volume_BA, real_valid_curB_amount)
-        # 要吃掉 B/A 的量需要多少 curB 才夠
-        needed_curB_amount = valid_BA_volume / (1 - taker_fee_rate)
-        # 換算需要買多少 curC 才夠
-        needed_curC_amount = (needed_curB_amount * ask_price_BC) / (1 - taker_fee_rate)
-        # 換算需要多少 curA 才夠
-        needed_curA_amount = (needed_curC_amount * ask_price_CA) / (1 - taker_fee_rate)
-
+        valid_21_volume = min(bid_volume_21, real_valid_cur2_amount)
+        # 要吃掉 B/A 的量需要多少 cur2 才夠
+        needed_cur2_amount = valid_21_volume / (1 - taker_fee_rate)
+        # 換算需要買多少 cur3 才夠
+        needed_cur3_amount = (needed_cur2_amount * ask_price_23) / (1 - taker_fee_rate)
+        # 換算需要多少 cur1 才夠
+        needed_cur1_amount = (needed_cur3_amount * ask_price_31) / (1 - taker_fee_rate)
 
         # 取到小數點第 8 位
-        floored_needed_curA_amount = utils.get_floored_amount(needed_curA_amount)
-        floored_needed_curB_amount = utils.get_floored_amount(needed_curB_amount)
-        floored_needed_curC_amount = utils.get_floored_amount(needed_curC_amount)
+        floored_needed_cur1_amount = utils.get_floored_amount(needed_cur1_amount)
+        floored_needed_cur2_amount = utils.get_floored_amount(needed_cur2_amount)
+        floored_needed_cur3_amount = utils.get_floored_amount(needed_cur3_amount)
 
-        print('valid_curA_amount', valid_curA_amount)
-        print('possible_curC_volume', possible_curC_volume)
-        print('real_valid_volume_curC', real_valid_volume_curC)
-        print('possible_curB_volume', possible_curB_volume)
-        print('valid_BC_volume', valid_BC_volume)
-        print('real_valid_curB_amount', real_valid_curB_amount)
-        print('valid_BA_volume', valid_BA_volume)
-        print('needed_curB_amount', needed_curB_amount)
-        print('needed_curC_amount', needed_curC_amount)
-        print('needed_curA_amount', needed_curA_amount)
+        print('valid_cur1_amount', valid_cur1_amount)
+        print('possible_cur3_volume', possible_cur3_volume)
+        print('real_valid_volume_cur3', real_valid_volume_cur3)
+        print('possible_cur2_volume', possible_cur2_volume)
+        print('valid_23_volume', valid_23_volume)
+        print('real_valid_cur2_amount', real_valid_cur2_amount)
+        print('valid_21_volume', valid_21_volume)
+        print('needed_cur2_amount', needed_cur2_amount)
+        print('needed_cur3_amount', needed_cur3_amount)
+        print('needed_cur1_amount', needed_cur1_amount)
 
         # 是否達最小交易量
-        if floored_needed_curA_amount < limits_CA['cost']['min']:
+        if floored_needed_cur1_amount < limits_31['cost']['min']:
             return 0
-        elif (floored_needed_curA_amount / ask_price_CA) < limits_CA['amount']['min']:
+        elif (floored_needed_cur1_amount / ask_price_31) < limits_31['amount']['min']:
             return 0
-        elif floored_needed_curC_amount < limits_BC['cost']['min']:
+        elif floored_needed_cur3_amount < limits_23['cost']['min']:
             return 0
-        elif (floored_needed_curC_amount / ask_price_BC) < limits_BC['amount']['min']:
+        elif (floored_needed_cur3_amount / ask_price_23) < limits_23['amount']['min']:
             return 0
-        elif floored_needed_curB_amount < limits_BA['amount']['min']:
+        elif floored_needed_cur2_amount < limits_21['amount']['min']:
             return 0
-        elif (floored_needed_curB_amount * bid_price_BA) < limits_BA['cost']['min']:
+        elif (floored_needed_cur2_amount * bid_price_21) < limits_21['cost']['min']:
             return 0
         else:
-            return floored_needed_curC_amount
+            return floored_needed_cur3_amount

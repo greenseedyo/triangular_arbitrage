@@ -5,8 +5,11 @@ import math
 from bot.helpers.slack import Slack
 
 
-stream_started = False
-stream_order_books_dict = {}
+cross_threads_variables = {
+    'stream_started': False,
+    'stream_order_books_dict': {},
+    'invalid_combinations': {}
+}
 
 
 def get_floored_amount(amount, digits=8):

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from bot.helpers.trader import Trader
-from bot.helpers.trader import TradeSkippedException, NoMarketSymbolException
+from bot.helpers.trader import TradeSkippedException, BadMarketSymbolException
 from bot.helpers.thinker import Thinker
 from bot.helpers.loggers import Loggers
 import bot.helpers.utils as utils
@@ -38,22 +38,22 @@ def check():
     error_log_name = 'circle-{}-{}'.format(mode, exchange)
     set_error_logger(error_log_name)
 
-    # enabled_curB_candidates = ['BTC', 'ETH', 'LTC', 'BCH', 'MITH', 'USDT', 'TRX', 'EOS', 'BAT', 'ZRX', 'GNT', 'OMG', 'KNC', 'XRP']
-    curA = 'TWD'
-    curB = 'ETH'
-    curC = 'USDT'
+    # enabled_cur2_candidates = ['BTC', 'ETH', 'LTC', 'BCH', 'MITH', 'USDT', 'TRX', 'EOS', 'BAT', 'ZRX', 'GNT', 'OMG', 'KNC', 'XRP']
+    cur1 = 'TWD'
+    cur2 = 'ETH'
+    cur3 = 'USDT'
 
     # 交易金額上限設定 (測試時可設定較少金額)
-    max_curA_trade_amount = 1000
+    max_cur1_trade_amount = 1000
 
     thinker = Thinker(exchange)
     trader = Trader(exchange)
 
     config = {
-        'curA': curA,
-        'curB': curB,
-        'curC': curC,
-        'max_curA_trade_amount': max_curA_trade_amount,
+        'cur1': cur1,
+        'cur2': cur2,
+        'cur3': cur3,
+        'max_cur1_trade_amount': max_cur1_trade_amount,
         'exchange': exchange,
         'thinker': thinker,
         'trader': trader,
@@ -83,15 +83,15 @@ def run_loop(mode):
     set_error_logger(error_log_name)
 
     # 想賺的幣別
-    curA_targets = sys.argv[2].split(',')
+    cur1_targets = sys.argv[2].split(',')
 
     # 交易金額上限設定 (測試時可設定較少金額)
-    max_curA_trade_amount = 30000
+    max_cur1_trade_amount = 30000
 
     thinker = Thinker(exchange)
     trader = Trader(exchange)
 
-    target_combinations = thinker.get_target_combinations(curA_targets)
+    target_combinations = thinker.get_target_combinations(cur1_targets)
     market_symbols = thinker.get_market_symbols_of_combinations(target_combinations)
     if utils.has_websocket(exchange):
         trader.thread_stream_order_books(market_symbols)
@@ -104,32 +104,24 @@ def run_loop(mode):
 
     while 1:
         for key in target_combinations:
+            if key in utils.cross_threads_variables['invalid_combinations']:
+                continue
             combination = target_combinations[key]
-            curA, curB, curC = combination
+            cur1, cur2, cur3 = combination
             config = {
-                # 'threshold_forward': threshold_forward,  # 順向閥值，不給就吃預設值
-                # 'threshold_reverse': threshold_reverse,  # 逆向閥值，不給就吃預設值
-                'curA': curA,
-                'curB': curB,
-                'curC': curC,
-                'max_curA_trade_amount': max_curA_trade_amount,
+                'cur1': cur1,
+                'cur2': cur2,
+                'cur3': cur3,
+                'max_cur1_trade_amount': max_cur1_trade_amount,
                 'exchange': exchange,
                 'thinker': thinker,
                 'trader': trader,
                 'mode': mode,
             }
-            try:
-                t = threading.Thread(target=run_one, args=(config,))
-                t.start()
-                #run_one(config)
-            except ConnectionAbortedError as e:
-                print(e)
-                return
-            except Exception as e:
-                print(e)
-                logging.getLogger('error').exception(e)
+            t = threading.Thread(target=run_one, args=(config,))
+            t.start()
 
-            if utils.stream_started:
+            if utils.cross_threads_variables['stream_started']:
                 time.sleep(0.1)
             else:
                 time.sleep(1)
@@ -137,63 +129,74 @@ def run_loop(mode):
 
 
 def run_one(config):
-    curA = config['curA']
-    curB = config['curB']
-    curC = config['curC']
+    cur1 = config['cur1']
+    cur2 = config['cur2']
+    cur3 = config['cur3']
     exchange = config['exchange']
-    max_curA_trade_amount = config['max_curA_trade_amount']
+    max_cur1_trade_amount = config['max_cur1_trade_amount']
 
     print('[{}]'.format(time.strftime('%c')))
-    print('{} - {} - {}'.format(curA, curB, curC))
+    print('{} - {} - {}'.format(cur1, cur2, cur3))
 
     trader = config['trader']
     thinker = config['thinker']
 
-    #pprint(trader.exchange_adapter.fetch_orders('USDT/TWD', limit=1))
-    #return
-
     # 交易量下限 (上限先不管)
-    symbol_BA = '{}/{}'.format(curB, curA)
-    symbol_BC = '{}/{}'.format(curB, curC)
-    symbol_CA = '{}/{}'.format(curC, curA)
-    limits_BA = trader.exchange_adapter.fetch_trading_limits(symbol_BA)
-    limits_BC = trader.exchange_adapter.fetch_trading_limits(symbol_BC)
-    limits_CA = trader.exchange_adapter.fetch_trading_limits(symbol_CA)
+    symbol_21 = '{}/{}'.format(cur2, cur1)
+    symbol_23 = '{}/{}'.format(cur2, cur3)
+    symbol_31 = '{}/{}'.format(cur3, cur1)
+    limits_21 = trader.exchange_adapter.fetch_trading_limits(symbol_21)
+    limits_23 = trader.exchange_adapter.fetch_trading_limits(symbol_23)
+    limits_31 = trader.exchange_adapter.fetch_trading_limits(symbol_31)
 
     # 取得交易對報價
-    order_book_BA = trader.get_order_book(symbol_BA, 1)
-    order_book_BC = trader.get_order_book(symbol_BC, 1)
-    order_book_CA = trader.get_order_book(symbol_CA, 1)
+    try:
+        order_book_21 = trader.get_order_book(symbol_21, 1)
+        order_book_23 = trader.get_order_book(symbol_23, 1)
+        order_book_31 = trader.get_order_book(symbol_31, 1)
+    except BadMarketSymbolException:
+        key = '{}-{}-{}'.format(cur1, cur2, cur3)
+        print('record invalid combination: {}'.format(key))
+        utils.cross_threads_variables['invalid_combinations'][key] = True
+        return
+    except ConnectionAbortedError as e:
+        print(e)
+        logging.getLogger('error').exception(e)
+        sys.exit(0)
+    except Exception as e:
+        print(e)
+        logging.getLogger('error').exception(e)
+        return
 
-    if (order_book_BA is None) or (order_book_BC is None) or (order_book_CA is None):
+    if (order_book_21 is None) or (order_book_23 is None) or (order_book_31 is None):
         return
 
     try:
-        lowest_ask_price_BA = float(order_book_BA['asks'][0][0])
-        lowest_ask_volume_BA = float(order_book_BA['asks'][0][1])
-        highest_bid_price_BA = float(order_book_BA['bids'][0][0])
-        highest_bid_volume_BA = float(order_book_BA['bids'][0][1])
+        lowest_ask_price_21 = float(order_book_21['asks'][0][0])
+        lowest_ask_volume_21 = float(order_book_21['asks'][0][1])
+        highest_bid_price_21 = float(order_book_21['bids'][0][0])
+        highest_bid_volume_21 = float(order_book_21['bids'][0][1])
 
-        lowest_ask_price_BC = float(order_book_BC['asks'][0][0])
-        lowest_ask_volume_BC = float(order_book_BC['asks'][0][1])
-        highest_bid_price_BC = float(order_book_BC['bids'][0][0])
-        highest_bid_volume_BC = float(order_book_BC['bids'][0][1])
+        lowest_ask_price_23 = float(order_book_23['asks'][0][0])
+        lowest_ask_volume_23 = float(order_book_23['asks'][0][1])
+        highest_bid_price_23 = float(order_book_23['bids'][0][0])
+        highest_bid_volume_23 = float(order_book_23['bids'][0][1])
 
-        lowest_ask_price_CA = float(order_book_CA['asks'][0][0])
-        lowest_ask_volume_CA = float(order_book_CA['asks'][0][1])
-        highest_bid_price_CA = float(order_book_CA['bids'][0][0])
-        highest_bid_volume_CA = float(order_book_CA['bids'][0][1])
+        lowest_ask_price_31 = float(order_book_31['asks'][0][0])
+        lowest_ask_volume_31 = float(order_book_31['asks'][0][1])
+        highest_bid_price_31 = float(order_book_31['bids'][0][0])
+        highest_bid_volume_31 = float(order_book_31['bids'][0][1])
     except IndexError:
         return
 
     # 計算操作匯率
-    forward_ratio = thinker.get_op_ratio(lowest_ask_price_BA, highest_bid_price_BC, highest_bid_price_CA)
-    reverse_ratio = thinker.get_op_ratio(highest_bid_price_BA, lowest_ask_price_BC, lowest_ask_price_CA)
+    forward_ratio = thinker.get_op_ratio(lowest_ask_price_21, highest_bid_price_23, highest_bid_price_31)
+    reverse_ratio = thinker.get_op_ratio(highest_bid_price_21, lowest_ask_price_23, lowest_ask_price_31)
     print('Forward ratio: {0:.8f}'.format(forward_ratio))
     print('Reverse ratio: {0:.8f}'.format(reverse_ratio))
 
-    combination = '{}-{}-{}'.format(curA, curB, curC)
-    #log_ratio(exchange, combination, forward_ratio, reverse_ratio)
+    combination = '{}-{}-{}'.format(cur1, cur2, cur3)
+    # log_ratio(exchange, combination, forward_ratio, reverse_ratio)
 
     mode = config['mode']
 
@@ -201,42 +204,42 @@ def run_one(config):
         trade_method = 'exec_test_trade'
         if 'forward' == direction:
             ratio = forward_ratio
-            curA_amount = trader.get_currency_amount(curA)
-            price_BA = lowest_ask_price_BA
-            price_BC = highest_bid_price_BC
-            price_CA = highest_bid_price_CA
-            take_volume = thinker.get_valid_forward_volume(max_curA_amount=max_curA_trade_amount,
-                                                           limits_BA=limits_BA,
-                                                           limits_BC=limits_BC,
-                                                           limits_CA=limits_CA,
-                                                           curA_amount=curA_amount,
-                                                           ask_price_BA=lowest_ask_price_BA,
-                                                           ask_volume_BA=lowest_ask_volume_BA,
-                                                           bid_price_BC=highest_bid_price_BC,
-                                                           bid_volume_BC=highest_bid_volume_BC,
-                                                           bid_price_CA=highest_bid_price_CA,
-                                                           bid_volume_CA=highest_bid_volume_CA)
-            print('take volume: {}{}'.format(take_volume, curB))
+            cur1_amount = trader.get_currency_amount(cur1)
+            price_21 = lowest_ask_price_21
+            price_23 = highest_bid_price_23
+            price_31 = highest_bid_price_31
+            take_volume = thinker.get_valid_forward_volume(max_cur1_amount=max_cur1_trade_amount,
+                                                           limits_21=limits_21,
+                                                           limits_23=limits_23,
+                                                           limits_31=limits_31,
+                                                           cur1_amount=cur1_amount,
+                                                           ask_price_21=lowest_ask_price_21,
+                                                           ask_volume_21=lowest_ask_volume_21,
+                                                           bid_price_23=highest_bid_price_23,
+                                                           bid_volume_23=highest_bid_volume_23,
+                                                           bid_price_31=highest_bid_price_31,
+                                                           bid_volume_31=highest_bid_volume_31)
+            print('take volume: {}{}'.format(take_volume, cur2))
             if 'production' == mode or 'test_real_trade' == mode:
                 trade_method = 'exec_forward_trade'
         elif 'reverse' == direction:
             ratio = reverse_ratio
-            price_BA = highest_bid_price_BA
-            price_BC = lowest_ask_price_BC
-            price_CA = lowest_ask_price_CA
-            curA_amount = trader.get_currency_amount(curA)
-            take_volume = thinker.get_valid_reverse_volume(max_curA_amount=max_curA_trade_amount,
-                                                           limits_BA=limits_BA,
-                                                           limits_BC=limits_BC,
-                                                           limits_CA=limits_CA,
-                                                           curA_amount=curA_amount,
-                                                           ask_price_CA=lowest_ask_price_CA,
-                                                           ask_volume_CA=lowest_ask_volume_CA,
-                                                           ask_price_BC=lowest_ask_price_BC,
-                                                           ask_volume_BC=lowest_ask_volume_BC,
-                                                           bid_price_BA=highest_bid_price_BA,
-                                                           bid_volume_BA=highest_bid_volume_BA)
-            print('take volume: {}{}'.format(take_volume, curC))
+            price_21 = highest_bid_price_21
+            price_23 = lowest_ask_price_23
+            price_31 = lowest_ask_price_31
+            cur1_amount = trader.get_currency_amount(cur1)
+            take_volume = thinker.get_valid_reverse_volume(max_cur1_amount=max_cur1_trade_amount,
+                                                           limits_21=limits_21,
+                                                           limits_23=limits_23,
+                                                           limits_31=limits_31,
+                                                           cur1_amount=cur1_amount,
+                                                           ask_price_31=lowest_ask_price_31,
+                                                           ask_volume_31=lowest_ask_volume_31,
+                                                           ask_price_23=lowest_ask_price_23,
+                                                           ask_volume_23=lowest_ask_volume_23,
+                                                           bid_price_21=highest_bid_price_21,
+                                                           bid_volume_21=highest_bid_volume_21)
+            print('take volume: {}{}'.format(take_volume, cur3))
             if 'production' == mode or 'test_real_trade' == mode:
                 trade_method = 'exec_reverse_trade'
         else:
@@ -246,17 +249,17 @@ def run_one(config):
             take_volume = take_volume if take_volume > 0 else 1
 
         if take_volume > 0:
-            amounts_before = trader.get_currencies_amounts([curA, curB, curC])
-            log_trade(time.strftime('%c'), direction, curA, curB,
-                      curC, take_volume, ratio)
+            amounts_before = trader.get_currencies_amounts([cur1, cur2, cur3])
+            log_trade(time.strftime('%c'), direction, cur1, cur2,
+                      cur3, take_volume, ratio)
             try:
                 method = getattr(trader, trade_method)
-                method(symbol_BA, symbol_BC, symbol_CA, take_volume, price_BA, price_BC, price_CA)
-            except TradeSkippedException as e:
-                logging.getLogger('error').exception(e)
+                method(symbol_21, symbol_23, symbol_31, take_volume, price_21, price_23, price_31)
+            except TradeSkippedException as ex:
+                logging.getLogger('error').exception(ex)
             # 取得最新結餘資訊
             time.sleep(2)
-            amounts_after = trader.get_currencies_amounts([curA, curB, curC])
+            amounts_after = trader.get_currencies_amounts([cur1, cur2, cur3])
             log_balance(exchange, amounts=amounts_after, amounts_before=amounts_before)
 
     if 'test_trade' == mode or 'test_real_trade' == mode:
@@ -264,18 +267,18 @@ def run_one(config):
         return
 
     # 檢查是否可順向操作
-    forward_opportunity = thinker.check_forward_opportunity(lowest_ask_price_BA, highest_bid_price_BC, highest_bid_price_CA)
+    forward_opportunity = thinker.check_forward_opportunity(lowest_ask_price_21, highest_bid_price_23, highest_bid_price_31)
     if forward_opportunity:
-        volume = min(lowest_ask_volume_BA, highest_bid_volume_BC)
-        log_opportunity(exchange, combination, 'forward', volume, curB, forward_ratio)
+        volume = min(lowest_ask_volume_21, highest_bid_volume_23)
+        log_opportunity(exchange, combination, 'forward', volume, cur2, forward_ratio)
         if 'explore' != mode:
             exec_trade('forward')
 
     # 檢查是否可反向操作 (外幣買入加密貨幣、台幣賣出加密貨幣)
-    reverse_opportunity = thinker.check_reverse_opportunity(highest_bid_price_BA, lowest_ask_price_BC, lowest_ask_price_CA)
+    reverse_opportunity = thinker.check_reverse_opportunity(highest_bid_price_21, lowest_ask_price_23, lowest_ask_price_31)
     if reverse_opportunity:
-        volume = min(highest_bid_volume_BA, lowest_ask_volume_BC)
-        log_opportunity(exchange, combination, 'reverse', volume, curB, reverse_ratio)
+        volume = min(highest_bid_volume_21, lowest_ask_volume_23)
+        log_opportunity(exchange, combination, 'reverse', volume, cur2, reverse_ratio)
         if 'explore' != mode:
             exec_trade('reverse')
 
@@ -304,24 +307,24 @@ def log_opportunity(exchange, combination, direction, volume, cur, ratio):
     logger.log(msg)
 
 
-def log_trade(formatted_time, direction, curA, curB, curC, take_volume, ratio):
+def log_trade(formatted_time, direction, cur1, cur2, cur3, take_volume, ratio):
     if 'forward' == direction:
-        start_cur = curB
+        start_cur = cur2
     elif 'reverse' == direction:
-        start_cur = curC
+        start_cur = cur3
     else:
         raise ValueError('direction must be forward or reverse')
-    trade_msg = '[{0}]\n{1}: {2}-{3}-{4}\nVolume: {5:.8f}{6}\nRatio: {7:.8f}'.format(formatted_time, direction.upper(), curA, curB,
-                                                    curC, take_volume, start_cur, ratio)
+    trade_msg = '[{0}]\n{1}: {2}-{3}-{4}\nVolume: {5:.8f}{6}\nRatio: {7:.8f}'.format(
+        formatted_time, direction.upper(), cur1, cur2, cur3, take_volume, start_cur, ratio)
     print(trade_msg)
     utils.log_to_slack(trade_msg)
     write_log('trade', trade_msg)
 
 
 def log_balance(exchange, amounts, amounts_before=None):
-    info = []
-    info.append('[{}]'.format(time.strftime('%c')))
-    info.append('Exchange: {}'.format(exchange))
+    info = [] \
+        .append('[{}]'.format(time.strftime('%c'))) \
+        .append('Exchange: {}'.format(exchange))
     for symbol in amounts:
         amount = amounts[symbol]
         if isinstance(amounts_before, dict):

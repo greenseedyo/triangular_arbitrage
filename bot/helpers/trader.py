@@ -21,38 +21,23 @@ class Trader:
 
     def get_order_book(self, pair_symbol, limit):
         order_book = None
-        if self.exchange in utils.stream_order_books_dict:
-            if not utils.stream_started:
+        if self.exchange in utils.cross_threads_variables['stream_order_books_dict']:
+            if not utils.cross_threads_variables['stream_started']:
                 raise ConnectionAbortedError('stream was not alive.')
             key = self.exchange_adapter.get_stream_order_book_key_by_market_symbol(pair_symbol)
-            order_books = utils.stream_order_books_dict[self.exchange]
-            #print(order_books)
+            order_books = utils.cross_threads_variables['stream_order_books_dict'][self.exchange]
+            # print(order_books)
             if key in order_books:
                 order_book = order_books[key]
         else:
-            while 1:
-                try:
-                    order_book = self.exchange_adapter.fetch_order_book(pair_symbol, limit=limit)
-                    break
-                except ccxt.ExchangeError as e:
-                    if str(e).find('No market symbol') != -1:
-                        raise NoMarketSymbolException
-                    else:
-                        print(str(e))
-                        break
-                except urllib.error.HTTPError as e:
-                    if 'HTTP Error 400: Bad Request' == str(e):
-                        return
-                    else:
-                        print('sleep 10s...')
-                        time.sleep(10)
-                        continue
-                except Exception as e:
-                    # TODO: raise exception
-                    print(e)
-                    print('sleep 10s...')
-                    time.sleep(10)
-                    continue
+            try:
+                order_book = self.exchange_adapter.fetch_order_book(pair_symbol, limit=limit)
+            except ccxt.ExchangeError:
+                raise BadMarketSymbolException
+            except ccxt.BadRequest:
+                raise BadMarketSymbolException
+            except urllib.error.HTTPError:
+                raise BadMarketSymbolException
         return order_book
 
     def get_currencies_amounts(self, symbols):
@@ -76,50 +61,51 @@ class Trader:
         except (TypeError, KeyError):
             return 0
 
-    def exec_test_trade(self, symbol_BA, symbol_BC, symbol_CA, volume,
-                        price_BA, price_BC, price_CA):
+    @staticmethod
+    def exec_test_trade(symbol_21, symbol_23, symbol_31, volume,
+                        price_21, price_23, price_31):
         print('test trade {}-{}-{}, volume: {}, prices: {}, {}, {}'.format(
-            symbol_BA, symbol_BC, symbol_CA, volume, price_BA, price_BC, price_CA))
+            symbol_21, symbol_23, symbol_31, volume, price_21, price_23, price_31))
         return
 
-    def exec_forward_trade(self, symbol_BA, symbol_BC, symbol_CA, volume_BA,
-                           price_BA, price_BC, price_CA):
+    def exec_forward_trade(self, symbol_21, symbol_23, symbol_31, volume_21,
+                           price_21, price_23, price_31):
         utils.log_to_slack('start FORWARD trade, detected prices:\n{}: {}\n{}: {}\n{}: {}'.format(
-            symbol_BA, price_BA, symbol_BC, price_BC, symbol_CA, price_CA
+            symbol_21, price_21, symbol_23, price_23, symbol_31, price_31
         ))
 
-        curB_amount = self.trade(symbol_BA, 'buy', volume_BA, price_BA)
+        cur2_amount = self.trade(symbol_21, 'buy', volume_21, price_21)
         time.sleep(1)
 
-        curC_amount = self.trade(symbol_BC, 'sell', curB_amount, price_BC)
+        cur3_amount = self.trade(symbol_23, 'sell', cur2_amount, price_23)
         time.sleep(1)
 
-        curA_amount = self.trade(symbol_CA, 'sell', curC_amount, price_CA)
-        return curA_amount
+        cur1_amount = self.trade(symbol_31, 'sell', cur3_amount, price_31)
+        return cur1_amount
 
-    def exec_reverse_trade(self, symbol_BA, symbol_BC, symbol_CA, volume_CA,
-                           price_BA, price_BC, price_CA):
+    def exec_reverse_trade(self, symbol_21, symbol_23, symbol_31, volume_31,
+                           price_21, price_23, price_31):
         utils.log_to_slack('start REVERSE trade, detected prices:\n{}: {}\n{}: {}\n{}: {}'.format(
-            symbol_BA, price_BA, symbol_BC, price_BC, symbol_CA, price_CA
+            symbol_21, price_21, symbol_23, price_23, symbol_31, price_31
         ))
 
-        curC_amount = self.trade(symbol_CA, 'buy', volume_CA, price_CA)
+        cur3_amount = self.trade(symbol_31, 'buy', volume_31, price_31)
         time.sleep(1)
 
-        volume_BC = curC_amount / price_BC
-        decrease_step = volume_BC * 0.004
-        # 若價格瞬間上漲，curC_amount 可能不夠買 volume_BC，就減少 volume_BC，買到為止
+        volume_23 = cur3_amount / price_23
+        decrease_step = volume_23 * 0.004
+        # 若價格瞬間上漲，cur3_amount 可能不夠買 volume_23，就減少 volume_23，買到為止
         while 1:
             try:
-                curB_amount = self.trade(symbol_BC, 'buy', volume_BC, price_BC)
+                cur2_amount = self.trade(symbol_23, 'buy', volume_23, price_23)
                 break
             except InsufficientFundsException:
                 utils.log_to_slack('Insufficient funds.\nDecrease volume by {}'.format(decrease_step))
-                volume_BC = volume_BC - decrease_step
+                volume_23 = volume_23 - decrease_step
         time.sleep(1)
 
-        curA_amount = self.trade(symbol_BA, 'sell', curB_amount, price_BA)
-        return curA_amount
+        cur1_amount = self.trade(symbol_21, 'sell', cur2_amount, price_21)
+        return cur1_amount
 
     def get_fee_rate(self, side):
         # side: taker/maker
@@ -151,7 +137,7 @@ class Trader:
         while 1:
             try:
                 order = exchange_adapter.fetch_order(order_id, pair_symbol)
-            except:
+            except Exception:
                 order = exchange_adapter.fetch_orders(pair_symbol)[-1]
                 if order['id'] != order_id:
                     time.sleep(0.5)
@@ -172,7 +158,6 @@ class Trader:
                 try:
                     fee = order['fee']['cost']
                 except Exception as e:
-                    #print(e)
                     fee = order['filled'] * taker_fee_rate
                 got_amount = order['filled'] - fee
             else:
@@ -182,23 +167,23 @@ class Trader:
             return got_amount
 
     def thread_stream_order_books(self, market_symbols):
-        def run_streaming(trader, market_symbols):
+        def run_streaming(trader):
             asyncio.set_event_loop(asyncio.new_event_loop())
-            utils.stream_started = True
+            utils.cross_threads_variables['stream_started'] = True
             asyncio.get_event_loop().run_until_complete(trader.stream_order_books(market_symbols))
-            utils.stream_started = False
-        t = threading.Thread(target=run_streaming, args=(self, market_symbols,))
+            utils.cross_threads_variables['stream_started'] = False
+        t = threading.Thread(target=run_streaming, args=(self,))
         t.start()
 
     async def stream_order_books(self, market_symbols):
-        utils.stream_order_books_dict[self.exchange] = {}
+        utils.cross_threads_variables['stream_order_books_dict'][self.exchange] = {}
         uri = self.exchange_adapter.get_stream_order_books_uri(market_symbols)
         async with websockets.connect(uri) as websocket:
             while True:
                 result = await websocket.recv()
                 order_book = self.exchange_adapter.format_stream_order_book(result)
                 key = self.exchange_adapter.format_stream_order_book_key(result)
-                utils.stream_order_books_dict['binance'][key] = order_book
+                utils.cross_threads_variables['stream_order_books_dict']['binance'][key] = order_book
 
 
 class TradeSkippedException(Exception):
@@ -209,5 +194,5 @@ class InsufficientFundsException(TradeSkippedException):
     pass
 
 
-class NoMarketSymbolException(Exception):
+class BadMarketSymbolException(Exception):
     pass
