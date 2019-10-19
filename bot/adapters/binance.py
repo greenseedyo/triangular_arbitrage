@@ -5,9 +5,6 @@ from secrets import BINANCE_KEY, BINANCE_SECRET
 import json
 
 
-order_books = {}
-
-
 class BinanceAdapter:
     def __init__(self):
         client = ccxt.binance({

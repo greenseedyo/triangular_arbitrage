@@ -17,7 +17,7 @@ circle-test:
 	python -m bin.circle_test
 
 swing:
-	python -m bin.swing
+	python -m bin.swing $(exchange) $(bridges)
 
 check:
 	python -m bin.check

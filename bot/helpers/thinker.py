@@ -8,8 +8,24 @@ class Thinker:
     def __init__(self, config):
         self.exchange = config['exchange']
         self.exchange_adapter = utils.get_exchange_adapter(config['exchange'])
-        self.threshold_forward = config['threshold_forward']
-        self.threshold_reverse = config['threshold_reverse']
+
+        if 'threshold_forward' in config:
+            self.threshold_forward = config['threshold_forward']
+        else:
+            self.threshold_forward = self.get_default_threshold('forward')
+
+        if 'threshold_reverse' in config:
+            self.threshold_reverse = config['threshold_reverse']
+        else:
+            self.threshold_reverse = self.get_default_threshold('reverse')
+
+    def get_default_threshold(self, direction):
+        taker_fee_rate = self.exchange_adapter.taker_fee_rate
+        # 可執行交易的 (操作匯率 / 銀行匯率) 閥值設定
+        if 'forward' == direction:
+            return 1 - (taker_fee_rate * 3 + 0.0005)  # 順向
+        if 'reverse' == direction:
+            return 1 + (taker_fee_rate * 3 + 0.0005)  # 逆向
 
     def get_all_valid_combinations(self):
         markets = self.exchange_adapter.fetch_markets()

@@ -19,18 +19,15 @@ import sys
 ROOT_DIR = os.path.realpath('{}/../../../'.format(os.path.abspath(__file__)))
 
 
-def set_error_logger():
+def set_error_logger(name):
     logger = logging.getLogger('error')
     logger.setLevel(logging.ERROR)
-    file_handler = logging.FileHandler("logs/error.log")
+    file_handler = logging.FileHandler("logs/error-{}.log".format(name))
     file_handler.setLevel(logging.ERROR)
     formatter = logging.Formatter(fmt="[%(asctime)s] %(filename)s[line:%(lineno)d]%(levelname)s - %(message)s\n",
                                   datefmt="%Y-%m-%d %H:%M:%S")
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
-
-
-set_error_logger()
 
 
 def test():
@@ -40,8 +37,6 @@ def test():
     threshold_reverse = 1.004
     max_curA_trade_amount = 10000
     config = {
-        'threshold_forward': threshold_forward,  # 順向
-        'threshold_reverse': threshold_reverse,  # 逆向
         'exchange': exchange,
     }
     thinker = Thinker(config)
@@ -164,22 +159,17 @@ def run():
     # 交易所
     exchange = sys.argv[1]
 
+    # error_log 設定
+    error_log_name = 'circle-{}'.format(exchange)
+    set_error_logger(error_log_name)
+
     # 想賺的幣別
     curA_targets = sys.argv[2].split(',')
 
     # 交易金額上限設定 (測試時可設定較少金額)
     max_curA_trade_amount = 30000
 
-    exchange_adapter = utils.get_exchange_adapter(exchange)
-    taker_fee_rate = exchange_adapter.taker_fee_rate
-
-    # 可執行交易的 (操作匯率 / 銀行匯率) 閥值設定
-    threshold_forward = 1 - (taker_fee_rate * 3 + 0.0005)  # 順向
-    threshold_reverse = 1 + (taker_fee_rate * 3 + 0.0005)  # 逆向
-
     config = {
-        'threshold_forward': threshold_forward,  # 順向
-        'threshold_reverse': threshold_reverse,  # 逆向
         'exchange': exchange,
     }
     thinker = Thinker(config)
@@ -198,8 +188,8 @@ def run():
                 'curA': curA,
                 'curB': curB,
                 'curC': curC,
-                'threshold_forward': threshold_forward,  # 順向
-                'threshold_reverse': threshold_reverse,  # 逆向
+                #'threshold_forward': threshold_forward,  # 順向閥值，不給就吃預設值
+                #'threshold_reverse': threshold_reverse,  # 逆向閥值，不給就吃預設值
                 'max_curA_trade_amount': max_curA_trade_amount,
                 'exchange': exchange,
                 'mode': 'production',

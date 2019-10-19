@@ -238,8 +238,27 @@ class Thinker:
         self.secondary_exchange = config['secondary_exchange']
         self.primary_exchange_adapter = get_exchange_adapter(config['primary_exchange'])
         self.secondary_exchange_adapter = get_exchange_adapter(config['secondary_exchange'])
-        self.threshold_forward = config['threshold_forward']
-        self.threshold_reverse = config['threshold_reverse']
+
+        if 'threshold_forward' in config:
+            self.threshold_forward = config['threshold_forward']
+        else:
+            self.threshold_forward = self.get_default_threshold('forward')
+
+        if 'threshold_reverse' in config:
+            self.threshold_reverse = config['threshold_reverse']
+        else:
+            self.threshold_reverse = self.get_default_threshold('reverse')
+
+    # 預設可執行交易的 (操作匯率 / 銀行匯率) 閥值
+    def get_default_threshold(self, direction):
+        primary_taker_fee_rate = self.primary_exchange_adapter.taker_fee_rate
+        secondary_taker_fee_rate = self.primary_exchange_adapter.taker_fee_rate
+        sum_taker_fee_rate = primary_taker_fee_rate + secondary_taker_fee_rate
+        # 單趟只會被收一次 taker_fee，但閥值設在兩趟的 taker_fee_rate 加總，故利潤空間為 taker_fee 總和的一倍
+        if 'forward' == direction:
+            return 1 - sum_taker_fee_rate  # 順向
+        if 'reverse' == direction:
+            return 1 + sum_taker_fee_rate  # 逆向
 
     def check_forward_opportunity(self, primary_lowest_ask_price, secondary_highest_bid_price):
         ratio = self.get_op_ratio(primary_lowest_ask_price, secondary_highest_bid_price)
