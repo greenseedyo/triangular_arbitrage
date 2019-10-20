@@ -41,23 +41,24 @@ class Trader:
         return order_book
 
     def get_currencies_amounts(self, symbols):
-        response = self.exchange_adapter.fetch_balance()
+        balances = self.exchange_adapter.fetch_balance()
         amounts = {}
         for symbol in symbols:
-            try:
-                amounts[symbol] = response['free'][symbol]
-            except (TypeError, KeyError):
-                amounts[symbol] = 0
+            amounts[symbol] = self.get_currency_amount(symbol, balances)
         return amounts
 
-    def get_currency_amount(self, symbol):
-        response = self.exchange_adapter.fetch_balance()
+    def get_currency_amount(self, symbol, balances=None):
+        response = self.exchange_adapter.fetch_balance() if balances is None else balances
         try:
-            amount = response['free'][symbol]
-            if amount is None:
-                return 0
+            free_amount = response['free'][symbol]
+            if free_amount is not None:
+                return free_amount
             else:
-                return amount
+                total_amount = response['total'][symbol]
+                if total_amount is not None:
+                    return total_amount
+                else:
+                    return 0
         except (TypeError, KeyError):
             return 0
 

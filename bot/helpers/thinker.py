@@ -40,6 +40,8 @@ class Thinker:
             candidates = {}
             valid_ones = {}
             for m in markets:
+                if not m['active']:
+                    continue
                 candidate = m['base']
                 if candidate == tmp_cur1 or candidate == tmp_cur3 or (candidate in valid_ones):
                     continue
@@ -145,16 +147,22 @@ class Thinker:
         floored_needed_cur2_amount = utils.get_floored_amount(needed_cur2_amount)
         floored_needed_cur3_amount = utils.get_floored_amount(needed_cur3_amount)
 
-        print('valid_cur1_amount', valid_cur1_amount)
-        print('cur2_possible_volume', cur2_possible_volume)
-        print('valid_21_volume', valid_21_volume)
-        print('real_valid_volume_cur2', real_valid_volume_cur2)
-        print('valid_23_volume', valid_23_volume)
-        print('real_valid_cur3_amount', real_valid_cur3_amount)
-        print('valid_31_volume', valid_31_volume)
-        print('needed_cur3_amount', needed_cur3_amount)
-        print('needed_cur2_amount', needed_cur2_amount)
-        print('needed_cur1_amount', needed_cur1_amount)
+        info = [
+            'valid_cur1_amount: {}'.format(valid_cur1_amount),
+            'cur2_possible_volume: {}'.format(cur2_possible_volume),
+            'valid_21_volume: {}'.format(valid_21_volume),
+            'real_valid_volume_cur2: {}'.format(real_valid_volume_cur2),
+            'valid_23_volume: {}'.format(valid_23_volume),
+            'real_valid_cur3_amount: {}'.format(real_valid_cur3_amount),
+            'valid_31_volume: {}'.format(valid_31_volume),
+            'needed_cur3_amount: {}'.format(needed_cur3_amount),
+            'needed_cur2_amount: {}'.format(needed_cur2_amount),
+            'needed_cur1_amount: {}'.format(needed_cur1_amount)
+        ]
+
+        msg = "\n".join(info)
+        print(msg)
+        utils.write_log('thinker/circle-{}'.format(self.exchange), msg, mode='w')
 
         # 是否達最小交易量
         if floored_needed_cur1_amount < limits_21['cost']['min']:
@@ -207,16 +215,22 @@ class Thinker:
         floored_needed_cur2_amount = utils.get_floored_amount(needed_cur2_amount)
         floored_needed_cur3_amount = utils.get_floored_amount(needed_cur3_amount)
 
-        print('valid_cur1_amount', valid_cur1_amount)
-        print('possible_cur3_volume', possible_cur3_volume)
-        print('real_valid_volume_cur3', real_valid_volume_cur3)
-        print('possible_cur2_volume', possible_cur2_volume)
-        print('valid_23_volume', valid_23_volume)
-        print('real_valid_cur2_amount', real_valid_cur2_amount)
-        print('valid_21_volume', valid_21_volume)
-        print('needed_cur2_amount', needed_cur2_amount)
-        print('needed_cur3_amount', needed_cur3_amount)
-        print('needed_cur1_amount', needed_cur1_amount)
+        info = [
+            'valid_cur1_amount: {}'.format(valid_cur1_amount),
+            'possible_cur3_volume: {}'.format(possible_cur3_volume),
+            'real_valid_volume_cur3: {}'.format(real_valid_volume_cur3),
+            'possible_cur2_volume: {}'.format(possible_cur2_volume),
+            'valid_23_volume: {}'.format(valid_23_volume),
+            'real_valid_cur2_amount: {}'.format(real_valid_cur2_amount),
+            'valid_21_volume: {}'.format(valid_21_volume),
+            'needed_cur2_amount: {}'.format(needed_cur2_amount),
+            'needed_cur3_amount: {}'.format(needed_cur3_amount),
+            'needed_cur1_amount: {}'.format(needed_cur1_amount)
+        ]
+
+        msg = "\n".join(info)
+        print(msg)
+        utils.write_log('circle-thinker-{}'.format(self.exchange), msg, mode='w')
 
         # 是否達最小交易量
         if floored_needed_cur1_amount < limits_31['cost']['min']:

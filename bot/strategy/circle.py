@@ -32,7 +32,7 @@ def set_error_logger(name):
 
 def check():
     mode = 'test_trade'
-    exchange = 'max'
+    exchange = 'liquid'
 
     # error_log 設定
     error_log_name = 'circle-{}-{}'.format(mode, exchange)
@@ -48,6 +48,7 @@ def check():
 
     thinker = Thinker(exchange)
     trader = Trader(exchange)
+    trader.exchange_adapter.load_markets()
 
     config = {
         'cur1': cur1,
@@ -88,7 +89,7 @@ def run_loop(mode):
     max_cur1_trade_amount = 30000
 
     # 輪詢間隔
-    interval = int(sys.argv[3]) if len(sys.argv) >= 3 else 1
+    interval = int(sys.argv[3]) if len(sys.argv) > 3 else 1
 
     # helpers
     thinker = Thinker(exchange)
@@ -324,13 +325,14 @@ def log_trade(formatted_time, direction, cur1, cur2, cur3, take_volume, ratio):
         formatted_time, direction.upper(), cur1, cur2, cur3, take_volume, start_cur, ratio)
     print(trade_msg)
     utils.log_to_slack(trade_msg)
-    write_log('trade', trade_msg)
+    utils.write_log('trade', trade_msg)
 
 
 def log_balance(exchange, amounts, amounts_before=None):
-    info = [] \
-        .append('[{}]'.format(time.strftime('%c'))) \
-        .append('Exchange: {}'.format(exchange))
+    info = [
+        '[{}]'.format(time.strftime('%c')),
+        'Exchange: {}'.format(exchange)
+    ]
     for symbol in amounts:
         amount = amounts[symbol]
         if isinstance(amounts_before, dict):
@@ -343,17 +345,7 @@ def log_balance(exchange, amounts, amounts_before=None):
     print('[NEW BALANCE INFO]')
     print(msg)
     utils.log_to_slack(msg)
-    write_log('balance', msg)
-
-
-def write_log(log_name, msg):
-    log_file = 'logs/{}.log'.format(log_name)
-    dir_path = os.path.dirname(os.path.realpath(log_file))
-    if not os.path.exists(dir_path):
-        os.makedirs(dir_path)
-    with open(log_file, 'a') as the_file:
-        the_file.write(msg)
-        the_file.write('\n')
+    utils.write_log('balance', msg)
 
 
 def plot():

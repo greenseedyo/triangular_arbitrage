@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import sys
+import os
 import math
 from bot.helpers.slack import Slack
 
@@ -46,3 +47,13 @@ def has_websocket(exchange_name):
         return True
     else:
         return False
+
+
+def write_log(log_name, msg, mode='a'):
+    log_file = 'logs/{}.log'.format(log_name)
+    dir_path = os.path.dirname(os.path.realpath(log_file))
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+    with open(log_file, mode) as the_file:
+        the_file.write(msg)
+        the_file.write('\n')
