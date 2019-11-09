@@ -37,22 +37,19 @@ def plot():
 def check():
     set_error_logger('swing-check')
     first_currency = 'TWD'
-    bridge_currency = 'ETH'
+    bridge_currency = 'BTC'
     second_currency = 'USDT'
     primary_exchange = 'max'
-    secondary_exchange = 'binance'
+    secondary_exchange = 'bitfinex'
     config = {
-        'real_rate_handler': 'get_real_rate_in_primary_exchange',
+        'real_rate_handler': 'get_usdtwd_by_twder',
         'bridge_currency': bridge_currency,
         'first_currency': first_currency,
         'second_currency': second_currency,
         'max_first_currency_trade_amount': 1000,
-        'min_bridge_currency_trade_amount': 0.05,
-        'threshold_forward': 0.997,  # 順向
-        'threshold_reverse': 1.003,  # 逆向
         'primary_exchange': primary_exchange,
         'secondary_exchange': secondary_exchange,
-        'mode': 'test_trade',
+        'mode': 'test_real_trade',
     }
     try:
         run_one(config)
@@ -63,6 +60,7 @@ def check():
         # pprint(amount)
     except Exception as e:
         print(e)
+        logging.exception(e)
     #print(trader.get_bridge_currency_amount_in_secondary_exchange())
     #print(trader.get_real_rate())
     #info = trader.get_balance_info()
@@ -133,9 +131,6 @@ def run_one(config):
     first_currency = config['first_currency']
     bridge_currency = config['bridge_currency']
     second_currency = config['second_currency']
-
-    symbol_primary = '{}/{}'.format(bridge_currency, first_currency)
-    symbol_secondary = '{}/{}'.format(bridge_currency, second_currency)
 
     print('[{}]'.format(time.strftime('%c')))
     print('{} - {} - {}'.format(first_currency, bridge_currency, second_currency))

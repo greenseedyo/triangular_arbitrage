@@ -30,7 +30,7 @@ class Trader:
         self.secondary_pair_symbol = '{}/{}'.format(self.bridge_currency, self.second_currency)
         self.real_rate = None
         self.real_pair_symbol = '{}/{}'.format(self.second_currency, self.first_currency)
-        
+
     def get_real_rate_handler(self, handler_name):
         handler = getattr(self, handler_name)
         return handler
@@ -138,7 +138,7 @@ class Trader:
         # bridge currency / second currency 的 bid 價格
         rate = float(secondary_pair_order_book['bids'][0][0])
         equivalent_bridge_currency_amount = volume / rate
-        needed_bridge_currency_amount = equivalent_bridge_currency_amount / (1 - self.get_secondary_exchange_fee_rate('taker'))
+        needed_bridge_currency_amount = equivalent_bridge_currency_amount / (1 - self.secondary_exchange_adapter.fees['trading']['taker'])
         return needed_bridge_currency_amount
 
     def exec_test_trade(self, take_volume):
@@ -173,11 +173,11 @@ class Trader:
         if 'primary' == exchange_type:
             exchange_adapter = self.primary_exchange_adapter
             pair_symbol = self.primary_pair_symbol
-            fee_rate = self.get_primary_exchange_fee_rate('taker')
+            fee_rate = self.primary_exchange_adapter.fees['trading']['taker']
         elif 'secondary' == exchange_type:
             exchange_adapter = self.secondary_exchange_adapter
             pair_symbol = self.secondary_pair_symbol
-            fee_rate = self.get_secondary_exchange_fee_rate('taker')
+            fee_rate = self.secondary_exchange_adapter.fees['trading']['taker']
 
         #print('{} {}: {} {}'.format(exchange_type, pair_symbol, side, amount))
 
@@ -267,10 +267,11 @@ class Thinker:
         secondary_taker_fee_rate = self.get_secondary_exchange_fee_rate('taker')
         sum_taker_fee_rate = primary_taker_fee_rate + secondary_taker_fee_rate
         # 單趟只會被收一次 taker_fee，但閥值設在兩趟的 taker_fee_rate 加總，故利潤空間為 taker_fee 總和的一倍
+        base = 0.992  # 台灣交易所的 USDT/TWD 匯率都會比較實際低
         if 'forward' == direction:
-            return 1 - sum_taker_fee_rate  # 順向
+            return base - sum_taker_fee_rate  # 順向
         if 'reverse' == direction:
-            return 1 + sum_taker_fee_rate  # 逆向
+            return base + sum_taker_fee_rate  # 逆向
 
     def check_forward_opportunity(self, primary_lowest_ask_price, secondary_highest_bid_price):
         ratio = self.get_op_ratio(primary_lowest_ask_price, secondary_highest_bid_price)

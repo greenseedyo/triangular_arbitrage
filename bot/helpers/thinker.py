@@ -246,4 +246,21 @@ class Thinker:
         elif (floored_needed_cur2_amount * bid_price_21) < limits_21['cost']['min']:
             return 0
         else:
+            # HOTFIX
+            floored_needed_cur3_amount = floored_needed_cur3_amount * 0.99
             return floored_needed_cur3_amount
+
+# FIXME: 計算有誤導致單吃不下來
+# [2019-11-03 02:25:50] REVERSE OPPORTUNITY TWD-BCNT-USDT: possible volume: 1393.00000000BCNT, ratio: 1.02656279
+# input:  {'self': <bot.helpers.thinker.Thinker object at 0x112620940>, 'max_cur1_amount': 30000, 'limits_21': {'amount': {'min': 300.0}, 'cost': {'min': 250}}, 'limits_23': {'amount': {'min': 300.0}, 'cost': {'min': 8}}, 'limits_31': {'amount': {'min': 8}, 'cost': {'min': 250}}, 'cur1_amount': 897.4384, 'ask_price_31': 30.3, 'ask_volume_31': 241.57, 'ask_price_23': 0.02308, 'ask_volume_23': 4794.9, 'bid_price_21': 0.7179, 'bid_volume_21': 1393.0, 'taker_fee_rate': 0.0015}
+# valid_cur1_amount: 897.4384
+# possible_cur3_volume: 29.61842904290429
+# real_valid_volume_cur3: 29.574001399339934
+# possible_cur2_volume: 1281.3692114098758
+# valid_23_volume: 1281.3692114098758
+# real_valid_cur2_amount: 1279.447157592761
+# valid_21_volume: 1279.447157592761
+# needed_cur2_amount: 1281.3692114098758
+# needed_cur3_amount: 29.61842904290429
+# needed_cur1_amount: 898.7865798698047
+# take volume: 29.61842904USDT
