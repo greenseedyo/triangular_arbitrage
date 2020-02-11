@@ -267,7 +267,7 @@ class Thinker:
         secondary_taker_fee_rate = self.get_secondary_exchange_fee_rate('taker')
         sum_taker_fee_rate = primary_taker_fee_rate + secondary_taker_fee_rate
         # 單趟只會被收一次 taker_fee，但閥值設在兩趟的 taker_fee_rate 加總，故利潤空間為 taker_fee 總和的一倍
-        base = 0.992  # 台灣交易所的 USDT/TWD 匯率都會比較實際低
+        base = 0.997  # 台灣交易所的 USDT/TWD 匯率都會比較實際低
         if 'forward' == direction:
             return base - sum_taker_fee_rate  # 順向
         if 'reverse' == direction:

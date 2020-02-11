@@ -10,4 +10,4 @@ $ make swing exchange=bitfinex bridges=BTC
 
 circle-max
 
-$make circle exchange=max targets=TWD,BTC,USDT interval=3
+$ make circle exchange=max targets=TWD,BTC,USDT interval=3

@@ -28,9 +28,9 @@ class Thinker:
         taker_fee_rate = self.get_fee_rate('taker')
         # 可執行交易的 (操作匯率 / 銀行匯率) 閥值設定
         if 'forward' == direction:
-            return 1 - (taker_fee_rate * 3 + 0.0005)  # 順向
+            return 1 - (taker_fee_rate * 3 + 0.0001)  # 順向
         if 'reverse' == direction:
-            return 1 + (taker_fee_rate * 3 + 0.0005)  # 逆向
+            return 1 + (taker_fee_rate * 3 + 0.0001)  # 逆向
 
     def get_all_valid_combinations(self):
         markets = self.exchange_adapter.fetch_markets()

@@ -106,6 +106,7 @@ def run_loop(mode):
 
     # 交易金額上限設定
     max_first_currency_trade_amount = 10000
+    preserve_first_currency_amount = 2000
 
     while 1:
         for bridge_currency in enabled_bridge_currencies:
@@ -115,6 +116,7 @@ def run_loop(mode):
                 'first_currency': first_currency,
                 'second_currency': second_currency,
                 'max_first_currency_trade_amount': max_first_currency_trade_amount,
+                'preserve_first_currency_amount': preserve_first_currency_amount,
                 'primary_exchange': primary_exchange,
                 'secondary_exchange': secondary_exchange,
                 'mode': mode,
@@ -173,8 +175,9 @@ def run_one(config):
     write_log('ratio{}'.format(log_name_suffix), ratio_log)
 
     mode = config['mode']
+    preserve_first_currency_amount = config['preserve_first_currency_amount'] if 'preserve_first_currency_amount' in config else 0
 
-    def exec_trade(direction, buy_side_order_book, sell_side_order_book):
+    def exec_trade(direction, buy_side_order_book, sell_side_order_book, preserve_first_currency_amount):
         buy_side_lowest_ask_price = buy_side_order_book['asks'][0][0]
         buy_side_lowest_ask_volume = buy_side_order_book['asks'][0][1]
         sell_side_highest_bid_price = sell_side_order_book['bids'][0][0]
@@ -182,7 +185,7 @@ def run_one(config):
         trade_method = 'exec_test_trade'
 
         if 'forward' == direction:
-            buy_side_currency_amount = trader.get_first_currency_amount()
+            buy_side_currency_amount = max(0, trader.get_first_currency_amount() - preserve_first_currency_amount)
             sell_side_currency_amount = trader.get_bridge_currency_amount_in_secondary_exchange()
             if 'production' == mode or 'test_real_trade' == mode:
                 trade_method = 'exec_forward_trade'
@@ -233,7 +236,7 @@ def run_one(config):
 
     if 'test_trade' == mode or 'test_real_trade' == mode:
         #exec_trade('forward', primary_order_book, secondary_order_book)
-        exec_trade('reverse', secondary_order_book, primary_order_book)
+        exec_trade('reverse', secondary_order_book, primary_order_book, preserve_first_currency_amount)
         return
 
     # 檢查是否可順向操作 (台幣買入加密貨幣、外幣賣出加密貨幣)
@@ -241,14 +244,14 @@ def run_one(config):
     if forward_opportunity:
         log_opportunity('forward', primary_order_book, secondary_order_book)
         if 'explore' != mode:
-            exec_trade('forward', primary_order_book, secondary_order_book)
+            exec_trade('forward', primary_order_book, secondary_order_book, preserve_first_currency_amount)
 
     # 檢查是否可反向操作 (外幣買入加密貨幣、台幣賣出加密貨幣)
     reverse_opportunity = thinker.check_reverse_opportunity(secondary_lowest_ask_price, primary_highest_bid_price)
     if reverse_opportunity:
         log_opportunity('reverse', secondary_order_book, primary_order_book)
         if 'explore' != mode:
-            exec_trade('reverse', secondary_order_book, primary_order_book)
+            exec_trade('reverse', secondary_order_book, primary_order_book, preserve_first_currency_amount)
 
 
 def log_trade(formatted_time, direction, first_currency, bridge_currency, second_currency, take_volume, ratio):
