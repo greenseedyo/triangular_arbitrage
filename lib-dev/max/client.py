@@ -20,16 +20,29 @@ class Client(object):
 
         self._api_timeout = int(timeout)
 
-    def _build_body(self, endpoint, query={}):
-        body = {'path': f"/api/{PRIVATE_API_VERSION}/{endpoint}.json", 'nonce': get_current_timestamp()}
+    def _build_body(self, endpoint, query=None):
+        if query is None:
+            query = {}
+
+        # TODO: duplicated nonce may occurred in high frequency trading
+        # fix it by yourself, hard code last two characters is a quick solution
+        # {"error":{"code":2006,"message":"The nonce has already been used by access key."}}
+        body = {
+            'path': f"/api/{PRIVATE_API_VERSION}/{endpoint}.json",
+            'nonce': get_current_timestamp(),
+        }
+
         body.update(query)
 
         return body
 
-    def _build_headers(self, scope, body={}):
+    def _build_headers(self, scope, body=None):
+        if body is None:
+            body = {}
+
         headers = {
             'Accept': 'application/json',
-            'User-Agent': 'pyCryptoTrader/1.0.0',
+            'User-Agent': 'pyCryptoTrader/1.0.2',
         }
 
         if scope.lower() == 'private':
@@ -50,17 +63,37 @@ class Client(object):
     def _build_payload(self, body):
         return base64.urlsafe_b64encode(json.dumps(body).encode('utf-8')).decode('utf-8')
 
-    def _build_url(self, scope, endpoint, body={}, query={}):
+    def _build_url(self, scope, endpoint, body=None, query=None):
+        if query is None:
+            query = {}
+
+        if body is None:
+            body = {}
+
+        # 2020-03-03 Updated
+        # All query parameters must equal to payload
+        query.update(body)
+
         if scope.lower() == 'private':
             url = f"{PRIVATE_API_URL}/{PRIVATE_API_VERSION}/{endpoint}.json"
-            return f"{url}?{urlencode(body, True)}" if len(body) > 0 else url
         else:
             url = f"{PUBLIC_API_URL}/{PUBLIC_API_VERSION}/{endpoint}.json"
-            return f"{url}?{urlencode(query, True)}" if len(query) > 0 else url
 
-    def _send_request(self, scope, method, endpoint, query={}, form={}):
+        return f"{url}?{urlencode(query, True, '/[]')}" if len(query) > 0 else url
+
+    def _send_request(self, scope, method, endpoint, query=None, form=None):
+        if form is None:
+            form = {}
+
+        if query is None:
+            query = {}
+
         body = self._build_body(endpoint, query)
         data = None
+
+        if len(form) > 0:
+            body.update(form)
+            data = json.dumps(body).encode('utf-8')
 
         # Build X-MAX-PAYLOAD header first
         headers = self._build_headers(scope, body)
@@ -72,13 +105,24 @@ class Client(object):
             if type(body[key]) is list and not key[-2:] == '[]':
                 body[f"{key}[]"] = body.pop(key)
 
+                if key in query:
+                    query.pop(key)
+
         # Build final url here
         url = self._build_url(scope, endpoint, body, query)
 
-        if len(form) > 0:
-            data = json.dumps(form).encode('utf-8')
-
         request = Request(headers=headers, method=method.upper(), url=url.lower())
+
+        # Start: Debugging with BurpSuite only
+        # import ssl
+        # ssl._create_default_https_context = ssl._create_unverified_context
+
+        """
+        root@kali:/tmp/max-exchange-api-python3# export HTTPS_PROXY=https://127.0.0.1:8080
+        root@kali:/tmp/max-exchange-api-python3# /usr/bin/python3 all_api_endpoints.py
+        """
+        # End: Debugging with BurpSuite only
+
         response = urlopen(request, data=data, timeout=self._api_timeout)
 
         return json.loads(response.read())
@@ -360,8 +404,7 @@ class Client(object):
 
         return self._send_request('private', 'GET', 'order', {'id': _id})
 
-    def get_private_order_history(self, pair, state=['wait', 'convert'], sort='asc',
-                                  pagination=True, page=1, limit=100, offset=0):
+    def get_private_order_history(self, pair, state=None, sort='asc', pagination=True, page=1, limit=100, offset=0):
         """
         https://max.maicoin.com/documents/api_list#!/private/getApiV2Orders
 
@@ -374,6 +417,9 @@ class Client(object):
         :param offset: the records to skip, not applied for pagination
         :return: a list contains all placed orders
         """
+
+        if state is None:
+            state = ['wait', 'convert']
 
         query = {
             'market': pair.lower(),
@@ -616,7 +662,7 @@ class Client(object):
 
         return self._send_request('private', 'POST', 'orders', {}, form)
 
-    def set_private_create_orders(self, pair, sides=[], amounts=[], prices=[], stops=[], _types=[]):
+    def set_private_create_orders(self, pair, sides=None, amounts=None, prices=None, stops=None, _types=None):
         """
         https://max.maicoin.com/documents/api_list#!/private/postApiV2OrdersMulti
 
@@ -628,6 +674,21 @@ class Client(object):
         :param _types: the order type, should only be limit, market, stop_limit or stop_market
         :return: a list contains created orders information
         """
+
+        if _types is None:
+            _types = []
+
+        if stops is None:
+            stops = []
+
+        if prices is None:
+            prices = []
+
+        if amounts is None:
+            amounts = []
+
+        if sides is None:
+            sides = []
 
         orders = []
 
